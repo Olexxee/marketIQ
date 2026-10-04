@@ -1,0 +1,14 @@
+
+/src/generated/prisma
+node_modules/
+.env
+.env.local
+
+prisma/*.db
+prisma/*.db-journal
+
+logs/
+*.log
+
+.DS_Store
+Thumbs.db

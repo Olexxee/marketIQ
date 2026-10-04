@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ API - Locations Module
+  description: API for retrieving countries, states, LGAs, and cities.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      description: Check if the API is running.
+      responses:
+        '200':
+          description: API is running.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: MarketIQ API is running
+  /api/locations/countries:
+    get:
+      summary: List all countries
+      description: Retrieve a list of all countries, sorted by name ascending.
+      responses:
+        '200':
+          description: A list of countries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Country'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/countries/{id}:
+    get:
+      summary: Get a country by ID
+      description: Retrieve a single country by its ID.
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: The requested country.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Country'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/countries/{countryId}/states:
+    get:
+      summary: List states by country
+      description: Retrieve all states belonging to a specific country.
+      parameters:
+        - name: countryId
+          in: path
+          required: true
+          description: ID of the country
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: A list of states.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/State'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/states/{id}:
+    get:
+      summary: Get a state by ID
+      description: Retrieve a single state by its ID.
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: The requested state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/State'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/states/{stateId}/lgas:
+    get:
+      summary: List LGAs by state
+      description: Retrieve all LGAs belonging to a specific state.
+      parameters:
+        - name: stateId
+          in: path
+          required: true
+          description: ID of the state
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: A list of LGAs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lga'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/lgas/{id}:
+    get:
+      summary: Get an LGA by ID
+      description: Retrieve a single LGA by its ID.
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: The requested LGA.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lga'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/lgas/{lgaId}/cities:
+    get:
+      summary: List cities by LGA
+      description: Retrieve all cities belonging to a specific LGA.
+      parameters:
+        - name: lgaId
+          in: path
+          required: true
+          description: ID of the LGA
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: A list of cities.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/City'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/locations/cities/{id}:
+    get:
+      summary: Get a city by ID
+      description: Retrieve a single city by its ID.
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: The requested city.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/City'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      description: Unique identifier
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid or missing parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Invalid request parameters"
+            errors: ["id must be a non-empty string"]
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Country not found"
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Something went wrong"
+  schemas:
+    Country:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "1"
+        name:
+          type: string
+          example: "Nigeria"
+      required:
+        - id
+        - name
+    State:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "10"
+        name:
+          type: string
+          example: "Lagos"
+        countryId:
+          type: string
+          example: "1"
+      required:
+        - id
+        - name
+        - countryId
+    Lga:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "100"
+        name:
+          type: string
+          example: "Ikeja"
+        stateId:
+          type: string
+          example: "10"
+      required:
+        - id
+        - name
+        - stateId
+    City:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "1000"
+        name:
+          type: string
+          example: "Ikeja City"
+        lgaId:
+          type: string
+          example: "100"
+      required:
+        - id
+        - name
+        - lgaId
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Error message"
+        errors:
+          type: array
+          items:
+            type: string
+          example: ["Validation error"]
+      required:
+        - success
+        - message

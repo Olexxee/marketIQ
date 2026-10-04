@@ -1,0 +1,1265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  USER
+  ADMIN
+  STAFF
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum SellerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum SellerTradeCapability {
+  RETAIL
+  WHOLESALE
+  IMPORTER
+  EXPORTER
+  MANUFACTURER
+  DISTRIBUTOR
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CategoryType {
+  PRODUCT
+  SERVICE
+  CONTENT
+}
+
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+}
+
+enum OrderType {
+  RETAIL
+  WHOLESALE
+  SOURCING
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum SellerOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+  REVERSED
+}
+
+enum PaymentProvider {
+  PAYSTACK
+}
+
+enum PaymentType {
+  ORDER_PAYMENT
+}
+
+enum FulfillmentType {
+  LOCAL
+  IMPORT
+  PREORDER
+  DIGITAL
+}
+
+enum FulfillmentStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InventoryMovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  SALE
+  RETURN
+  RESTOCK
+}
+
+enum AddressType {
+  HOME
+  BUSINESS
+  DELIVERY
+  OTHER
+}
+
+enum SourcingRequestStatus {
+  OPEN
+  NEGOTIATING
+  QUOTED
+  ACCEPTED
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum SourcingResponseStatus {
+  SUBMITTED
+  NEGOTIATING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum SourcingMessageType {
+  MESSAGE
+  PRICE_PROPOSAL
+  COUNTER_OFFER
+  SYSTEM
+}
+
+enum TradePaymentTerm {
+  PREPAID
+  PARTIAL
+  NET_7
+  NET_14
+  NET_30
+}
+
+enum ShippingMethod {
+  LOCAL
+  IMPORT
+  SEA
+  AIR
+  DIGITAL
+}
+
+// ============================================================
+// USER & AUTHENTICATION
+// ============================================================
+
+model User {
+  id       String     @id @default(cuid())
+  fullName String
+  email    String     @unique
+  phone    String?    @unique
+  password String
+  role     UserRole   @default(USER)
+  status   UserStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refreshTokens          RefreshToken[]
+  addresses              Address[]
+  sellerProfile          SellerProfile?
+  carts                  Cart[]
+  orders                 Order[]
+  reviews                Review[]
+  wishlists              Wishlist[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  auditLogs              AuditLog[]
+
+  sourcingRequests  SourcingRequest[]
+  sourcingResponses SourcingResponse[]
+  sourcingMessages  SourcingMessage[]
+  reviewResponses   ReviewResponse[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// LOCATION
+// ============================================================
+
+model Country {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  states State[]
+
+  addresses        Address[]
+  sellers          SellerProfile[]
+  locations        BusinessLocation[]
+  warehouses       Warehouse[]
+  orders           Order[]
+  sourcingRequests SourcingRequest[]
+}
+
+model State {
+  id        String @id @default(cuid())
+  countryId String
+  name      String
+  code      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  lgas Lga[]
+
+  addresses        Address[]
+  sellers          SellerProfile[]
+  locations        BusinessLocation[]
+  warehouses       Warehouse[]
+  orders           Order[]
+  sourcingRequests SourcingRequest[]
+
+  @@unique([countryId, code])
+  @@unique([countryId, name])
+  @@index([countryId])
+}
+
+model Lga {
+  id      String @id @default(cuid())
+  stateId String
+  name    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  state State @relation(fields: [stateId], references: [id], onDelete: Cascade)
+
+  cities City[]
+
+  addresses        Address[]
+  sellers          SellerProfile[]
+  locations        BusinessLocation[]
+  warehouses       Warehouse[]
+  orders           Order[]
+  sourcingRequests SourcingRequest[]
+
+  @@unique([stateId, name])
+  @@index([stateId])
+}
+
+model City {
+  id    String @id @default(cuid())
+  lgaId String
+  name  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lga Lga @relation(fields: [lgaId], references: [id], onDelete: Cascade)
+
+  addresses        Address[]
+  locations        BusinessLocation[]
+  warehouses       Warehouse[]
+  orders           Order[]
+  sourcingRequests SourcingRequest[]
+
+  @@unique([lgaId, name])
+  @@index([lgaId])
+}
+
+// ============================================================
+// USER ADDRESSES
+// ============================================================
+
+model Address {
+  id String @id @default(cuid())
+
+  userId String
+
+  type        AddressType @default(DELIVERY)
+  label       String?
+  fullName    String
+  phone       String
+  addressLine String
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  country Country? @relation(fields: [countryId], references: [id])
+  state   State?   @relation(fields: [stateId], references: [id])
+  lga     Lga?     @relation(fields: [lgaId], references: [id])
+  city    City?    @relation(fields: [cityId], references: [id])
+
+  @@index([userId])
+  @@index([stateId])
+  @@index([lgaId])
+  @@index([cityId])
+}
+
+// ============================================================
+// SELLER
+// ============================================================
+
+model SellerProfile {
+  id String @id @default(cuid())
+
+  userId String @unique
+
+  businessName        String
+  businessDescription String?
+  businessPhone       String?
+  businessEmail       String?
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+
+  status SellerStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  country Country? @relation(fields: [countryId], references: [id])
+  state   State?   @relation(fields: [stateId], references: [id])
+  lga     Lga?     @relation(fields: [lgaId], references: [id])
+
+  locations    BusinessLocation[]
+  products     Product[]
+  sellerOrders SellerOrder[]
+  warehouses   Warehouse[]
+
+  sourcingResponses SourcingResponse[]
+  tradeCapabilities SellerTradeCapability[]
+
+  @@index([stateId])
+  @@index([lgaId])
+  @@index([status])
+}
+
+model BusinessLocation {
+  id String @id @default(cuid())
+
+  sellerId String
+
+  name        String
+  addressLine String
+
+  countryId String
+  stateId   String
+  lgaId     String
+  cityId    String?
+
+  isPrimary             Boolean @default(false)
+  isActive              Boolean @default(true)
+  isFulfillmentLocation Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  country Country @relation(fields: [countryId], references: [id])
+  state   State   @relation(fields: [stateId], references: [id])
+  lga     Lga     @relation(fields: [lgaId], references: [id])
+  city    City?   @relation(fields: [cityId], references: [id])
+
+  inventory  Inventory[]
+  warehouses Warehouse[]
+
+  @@index([sellerId])
+  @@index([stateId])
+  @@index([lgaId])
+  @@index([cityId])
+}
+
+// ============================================================
+// CATALOG
+// ============================================================
+
+model Category {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  description String?
+  type        CategoryType @default(PRODUCT)
+
+  parentId String?
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+
+  products Product[]
+
+  sourcingRequests SourcingRequest[]
+
+  @@index([parentId])
+  @@index([isActive])
+}
+
+model Brand {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Collection {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id String @id @default(cuid())
+
+  sellerId String
+
+  name        String
+  slug        String  @unique
+  description String?
+
+  brandId      String?
+  categoryId   String
+  collectionId String?
+
+  isFeatured   Boolean @default(false)
+  isNew        Boolean @default(false)
+  isBestSeller Boolean @default(false)
+
+  status ProductStatus @default(DRAFT)
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  brand      Brand?      @relation(fields: [brandId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
+  collection Collection? @relation(fields: [collectionId], references: [id])
+
+  variants  ProductVariant[]
+  wishlists Wishlist[]
+
+  sourcingResponses SourcingResponse[]
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([collectionId])
+  @@index([status])
+}
+
+model ProductVariant {
+  id String @id @default(cuid())
+
+  productId String
+
+  sku String @unique
+
+  name String?
+
+  color String?
+  size  String?
+
+  price          Decimal  @db.Decimal(12, 2)
+  compareAtPrice Decimal? @db.Decimal(12, 2)
+
+  weight Decimal @default(0) @db.Decimal(10, 3)
+
+  length Decimal? @db.Decimal(10, 2)
+  width  Decimal? @db.Decimal(10, 2)
+  height Decimal? @db.Decimal(10, 2)
+
+  fulfillmentType FulfillmentType @default(LOCAL)
+
+  attributes Json?
+  metadata   Json?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  media       VariantMedia[]
+  inventories Inventory[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  reviews     Review[]
+
+  fulfillmentItems FulfillmentItem[]
+
+  wishlistReferences Wishlist[]
+
+  sourcingResponses SourcingResponse[]
+
+  @@index([productId])
+  @@index([isActive])
+}
+
+model VariantMedia {
+  id        String @id @default(cuid())
+  variantId String
+
+  url      String
+  publicId String?
+
+  isPrimary Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+}
+
+// ============================================================
+// LOCATION-AWARE INVENTORY
+// ============================================================
+
+model Inventory {
+  id String @id @default(cuid())
+
+  variantId  String
+  locationId String
+
+  quantity    Int @default(0)
+  reservedQty Int @default(0)
+
+  reorderLevel Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variant  ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location BusinessLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  movements InventoryMovement[]
+
+  @@unique([variantId, locationId])
+  @@index([variantId])
+  @@index([locationId])
+}
+
+model InventoryMovement {
+  id String @id @default(cuid())
+
+  inventoryId String
+
+  type      InventoryMovementType
+  quantity  Int
+  reference String?
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================================
+// CART
+// ============================================================
+
+model Cart {
+  id String @id @default(cuid())
+
+  userId    String?
+  sessionId String?
+
+  status CartStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+model CartItem {
+  id String @id @default(cuid())
+
+  cartId    String
+  variantId String
+
+  quantity Int
+
+  unitPriceSnapshot Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+}
+
+// ============================================================
+// SOURCING / B2B COLLABORATION
+// ============================================================
+
+model SourcingRequest {
+  id String @id @default(cuid())
+
+  buyerId String
+
+  categoryId String?
+
+  title       String
+  description String?
+
+  quantity Int
+
+  targetUnitPrice Decimal? @db.Decimal(12, 2)
+  budget          Decimal? @db.Decimal(12, 2)
+
+  requiredBy DateTime?
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  status SourcingRequestStatus @default(OPEN)
+
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  country Country? @relation(fields: [countryId], references: [id])
+  state   State?   @relation(fields: [stateId], references: [id])
+  lga     Lga?     @relation(fields: [lgaId], references: [id])
+  city    City?    @relation(fields: [cityId], references: [id])
+
+  responses SourcingResponse[]
+  messages  SourcingMessage[]
+
+  order Order?
+
+  @@index([buyerId])
+  @@index([categoryId])
+  @@index([stateId])
+  @@index([lgaId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SourcingResponse {
+  id String @id @default(cuid())
+
+  requestId String
+  sellerId  String
+
+  productId String?
+  variantId String?
+
+  quantity Int
+
+  unitPrice Decimal @db.Decimal(12, 2)
+
+  minimumOrderQuantity Int?
+
+  estimatedDeliveryDays Int?
+
+  fulfillmentType FulfillmentType @default(LOCAL)
+
+  paymentTerm TradePaymentTerm @default(PREPAID)
+
+  shippingMethod ShippingMethod?
+
+  notes String?
+
+  status SourcingResponseStatus @default(SUBMITTED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request SourcingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id])
+
+  product Product?        @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  messages SourcingMessage[]
+
+  order  Order?
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+
+  @@index([requestId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([status])
+}
+
+model SourcingMessage {
+  id String @id @default(cuid())
+
+  requestId  String
+  responseId String?
+
+  senderId String
+
+  type SourcingMessageType @default(MESSAGE)
+
+  message String
+
+  proposedQuantity  Int?
+  proposedUnitPrice Decimal? @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  request  SourcingRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  response SourcingResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  sender User @relation(fields: [senderId], references: [id])
+
+  @@index([requestId])
+  @@index([responseId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+model Order {
+  id String @id @default(cuid())
+
+  orderNumber String @unique
+
+  buyerId String?
+
+  type OrderType @default(RETAIL)
+
+  sourcingRequestId  String? @unique
+  sourcingResponseId String? @unique
+
+  customerName  String
+  customerEmail String?
+  customerPhone String?
+
+  deliveryAddress String
+
+  deliveryCountryId String?
+  deliveryStateId   String?
+  deliveryLgaId     String?
+  deliveryCityId    String?
+
+  // Immutable geographic snapshot.
+  deliveryCountryName String?
+  deliveryStateName   String?
+  deliveryLgaName     String?
+  deliveryCityName    String?
+
+  subtotal      Decimal @db.Decimal(12, 2)
+  shippingTotal Decimal @default(0) @db.Decimal(12, 2)
+  tax           Decimal @default(0) @db.Decimal(12, 2)
+  total         Decimal @db.Decimal(12, 2)
+
+  paymentTerm TradePaymentTerm @default(PREPAID)
+
+  status OrderStatus @default(PENDING)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer User? @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+
+  sourcingRequest  SourcingRequest?  @relation(fields: [sourcingRequestId], references: [id])
+  sourcingResponse SourcingResponse? @relation(fields: [sourcingResponseId], references: [id])
+
+  deliveryCountry Country? @relation(fields: [deliveryCountryId], references: [id])
+  deliveryState   State?   @relation(fields: [deliveryStateId], references: [id])
+  deliveryLga     Lga?     @relation(fields: [deliveryLgaId], references: [id])
+  deliveryCity    City?    @relation(fields: [deliveryCityId], references: [id])
+
+  sellerOrders SellerOrder[]
+  items        OrderItem[]
+  payments     Payment[]
+  reviews      Review[]
+
+  @@index([buyerId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SellerOrder {
+  id String @id @default(cuid())
+
+  orderId  String
+  sellerId String
+
+  subtotal      Decimal @db.Decimal(12, 2)
+  shippingTotal Decimal @default(0) @db.Decimal(12, 2)
+  total         Decimal @db.Decimal(12, 2)
+
+  paymentTerm TradePaymentTerm @default(PREPAID)
+
+  status SellerOrderStatus @default(PENDING)
+
+  // Immutable seller geography snapshot.
+  sellerStateId String?
+  sellerLgaId   String?
+
+  sellerStateName String?
+  sellerLgaName   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order  Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller SellerProfile @relation(fields: [sellerId], references: [id])
+
+  items        OrderItem[]
+  fulfillments Fulfillment[]
+
+  @@unique([orderId, sellerId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId       String
+  sellerOrderId String?
+  variantId     String
+
+  quantity Int
+
+  unitPriceSnapshot Decimal @db.Decimal(12, 2)
+  totalPrice        Decimal @db.Decimal(12, 2)
+
+  productName String?
+  variantName String?
+  sku         String?
+
+  sellerName String?
+
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  sellerOrder SellerOrder? @relation(fields: [sellerOrderId], references: [id], onDelete: SetNull)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@index([sellerOrderId])
+  @@index([variantId])
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String?
+
+  type     PaymentType     @default(ORDER_PAYMENT)
+  provider PaymentProvider @default(PAYSTACK)
+
+  reference         String  @unique
+  providerReference String? @unique
+
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("NGN")
+
+  status PaymentStatus @default(PENDING)
+
+  authorizationUrl String?
+  accessCode       String?
+
+  providerPayload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ============================================================
+// FULFILLMENT
+// ============================================================
+
+model Warehouse {
+  id String @id @default(cuid())
+
+  sellerId   String?
+  locationId String?
+
+  name String
+  code String @unique
+
+  type FulfillmentType @default(LOCAL)
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  address String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller   SellerProfile?    @relation(fields: [sellerId], references: [id])
+  location BusinessLocation? @relation(fields: [locationId], references: [id])
+
+  country Country? @relation(fields: [countryId], references: [id])
+  state   State?   @relation(fields: [stateId], references: [id])
+  lga     Lga?     @relation(fields: [lgaId], references: [id])
+  city    City?    @relation(fields: [cityId], references: [id])
+
+  fulfillments Fulfillment[]
+
+  @@index([sellerId])
+  @@index([locationId])
+  @@index([stateId])
+  @@index([lgaId])
+}
+
+model Fulfillment {
+  id String @id @default(cuid())
+
+  sellerOrderId String
+  warehouseId   String?
+
+  type   FulfillmentType
+  status FulfillmentStatus @default(PENDING)
+
+  trackingNumber String?
+  carrier        String?
+  trackingUrl    String?
+
+  shippingMethod ShippingMethod?
+
+  estimatedDelivery DateTime?
+  deliveredAt       DateTime?
+
+  shippingCost Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Cascade)
+
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  items FulfillmentItem[]
+
+  @@index([sellerOrderId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model FulfillmentItem {
+  id String @id @default(cuid())
+
+  fulfillmentId String
+  variantId     String
+
+  quantity Int
+
+  unitPrice Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  fulfillment Fulfillment    @relation(fields: [fulfillmentId], references: [id], onDelete: Cascade)
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([fulfillmentId])
+  @@index([variantId])
+}
+
+// ============================================================
+// REVIEWS
+// ============================================================
+
+model Review {
+  id String @id @default(cuid())
+
+  userId    String
+  variantId String
+  orderId   String?
+
+  rating Int
+
+  title   String?
+  comment String?
+
+  status ReviewStatus @default(PENDING)
+
+  isVerified Boolean @default(false)
+
+  helpful    Int @default(0)
+  notHelpful Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  images   ReviewImage[]
+  response ReviewResponse?
+
+  @@index([userId])
+  @@index([variantId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model ReviewImage {
+  id String @id @default(cuid())
+
+  reviewId String
+
+  url      String
+  publicId String?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
+
+model ReviewResponse {
+  id String @id @default(cuid())
+
+  reviewId String @unique
+  userId   String
+
+  comment String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ============================================================
+// WISHLIST
+// ============================================================
+
+model Wishlist {
+  id String @id @default(cuid())
+
+  userId    String
+  productId String
+  variantId String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, productId, variantId])
+  @@index([userId])
+  @@index([productId])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+
+  type    String
+  title   String
+  message String
+
+  data Json?
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([readAt])
+}
+
+model NotificationPreference {
+  id String @id @default(cuid())
+
+  userId String @unique
+
+  emailEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// AUDIT
+// ============================================================
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  userId String?
+
+  action     String
+  resource   String?
+  resourceId String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([resource])
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// BUSINESS CONFIGURATION
+// ============================================================
+
+model BusinessConfig {
+  id String @id @default(cuid())
+
+  key   String @unique
+  value Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

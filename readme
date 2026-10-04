@@ -1,0 +1,110 @@
+marketplaceBackend/
+│
+├── prisma/
+│   ├── schema.prisma
+│   └── seed.js
+│
+├── src/
+│   │
+│   ├── config/
+│   │
+│   ├── middleware/
+│   │
+│   ├── routes/
+│   │
+│   ├── modules/
+│   │   ├── auth/
+│   │   ├── users/
+│   │   ├── locations/
+│   │   ├── sellers/
+│   │   ├── products/
+│   │   ├── categories/
+│   │   ├── inventory/
+│   │   ├── cart/
+│   │   ├── orders/
+│   │   ├── payments/
+│   │   ├── fulfillment/
+│   │   ├── reviews/
+│   │   │
+│   │   ├── events/
+│   │   ├── analytics/
+│   │   ├── intelligence/
+│   │   └── market/
+│   │
+│   ├── jobs/
+│   │
+│   ├── app.js
+│   └── server.js
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+
+After that, our build order is
+Locations
+Nigeria
+36 states + FCT
+LGAs
+cities/areas
+location queries
+Authentication
+register/login
+access/refresh tokens
+cookie + Bearer support
+req.user.id
+role middleware
+Seller onboarding
+seller profile
+business locations
+fulfillment locations
+Catalog
+categories
+brands
+products
+variants
+media
+Inventory
+location-specific inventory
+stock movements
+reservation logic
+Marketplace
+search
+buyer discovery
+cart
+checkout
+orders
+seller orders
+fulfillment
+1688-style sourcing
+sourcing requests
+supplier responses
+negotiation
+counter offers
+accepted quote → order
+Behavior/event system
+searches
+views
+carts
+purchases
+stockouts
+sourcing activity
+acquisition attribution
+Analytics
+demand
+supply
+conversion
+geographic activity
+seller performance
+AI intelligence
+market opportunities
+unmet demand
+seller recommendations
+inventory opportunities
+buyer intelligence
+Financing-readiness layer
+Business Growth Profile
+evidence-based metrics
+consent
+financial-institution view

@@ -1,0 +1,494 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ API - Auth Module
+  description: |
+    Authentication and session management endpoints for MarketIQ.
+
+    **Cookie-based refresh tokens:**
+    - On successful `register`, `login`, and `refresh`, the API sets a
+      `httpOnly` refresh-token cookie scoped to `/api/auth`.
+    - The cookie name is configured via `JWT_REFRESH_COOKIE_NAME`
+      (shown here as `refreshToken`).
+    - The refresh token is **never** returned in the JSON body.
+    - `logout` and `logout-all` clear the cookie.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Auth
+    description: Registration, login, session refresh, logout, and profile.
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: |
+        Creates a new user account with role `USER` and status `ACTIVE`.
+        On success, an access token is returned in the JSON body and a
+        refresh-token cookie is set on the response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              basic:
+                summary: Basic registration
+                value:
+                  fullName: "Jane Doe"
+                  email: "jane@example.com"
+                  phone: "+2348012345678"
+                  password: "StrongPass123"
+              withoutPhone:
+                summary: Registration without phone
+                value:
+                  fullName: "Jane Doe"
+                  email: "jane@example.com"
+                  password: "StrongPass123"
+      responses:
+        '201':
+          description: User registered successfully.
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie (`httpOnly`, path `/api/auth`).
+              schema:
+                type: string
+                example: "refreshToken=abc123...; HttpOnly; Path=/api/auth"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in a user
+      description: |
+        Authenticates a user by email and password. On success, returns an
+        access token and sets a refresh-token cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              basic:
+                value:
+                  email: "jane@example.com"
+                  password: "StrongPass123"
+      responses:
+        '200':
+          description: Logged in successfully.
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie (`httpOnly`, path `/api/auth`).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: |
+        Rotates the refresh token. Reads the refresh-token cookie, verifies
+        and revokes it, then issues a new access token **and** a new
+        refresh-token cookie.
+
+        The old refresh token is invalidated atomically (transaction).
+      parameters:
+        - in: cookie
+          name: refreshToken
+          required: true
+          schema:
+            type: string
+          description: HttpOnly refresh-token cookie (name configurable via `JWT_REFRESH_COOKIE_NAME`).
+      responses:
+        '200':
+          description: Token refreshed successfully.
+          headers:
+            Set-Cookie:
+              description: New refresh token cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out the current session
+      description: |
+        Revokes the refresh token associated with the request cookie and
+        clears the cookie. Idempotent — returns success even if the cookie
+        is missing or already revoked.
+      parameters:
+        - in: cookie
+          name: refreshToken
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Logged out successfully.
+          headers:
+            Set-Cookie:
+              description: Clears the refresh token cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                success: true
+                data:
+                  message: "Logged out successfully"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/logout-all:
+    post:
+      tags: [Auth]
+      summary: Log out from all devices
+      description: |
+        Revokes **all** active refresh tokens for the authenticated user
+        and clears the cookie. Requires a valid access token.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out from all devices.
+          headers:
+            Set-Cookie:
+              description: Clears the refresh token cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                success: true
+                data:
+                  message: "Logged out from all devices"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the current user
+      description: Returns the profile of the authenticated user. Requires a valid access token.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The current user's profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by `/api/auth/login`, `/api/auth/register`, or `/api/auth/refresh`.
+
+  parameters:
+    RefreshCookie:
+      in: cookie
+      name: refreshToken
+      required: true
+      schema:
+        type: string
+      description: HttpOnly refresh-token cookie.
+
+  responses:
+    BadRequest:
+      description: |
+        Validation error. Returned when the request body fails Zod schema
+        validation (e.g. invalid email, password too short, missing fields).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalidEmail:
+              value:
+                success: false
+                message: "Validation failed"
+                errors:
+                  - field: email
+                    message: "Invalid email address"
+            weakPassword:
+              value:
+                success: false
+                message: "Validation failed"
+                errors:
+                  - field: password
+                    message: "Password must be at least 8 characters"
+
+    Unauthorized:
+      description: |
+        Authentication failed. Possible causes:
+        - Invalid email or password
+        - Missing, malformed, or expired access/refresh token
+        - Refresh token has been revoked
+        - Account is suspended
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalidCredentials:
+              value:
+                success: false
+                message: "Invalid email or password"
+            suspended:
+              value:
+                success: false
+                message: "Your account is suspended"
+            missingRefresh:
+              value:
+                success: false
+                message: "Refresh token is required"
+            invalidRefresh:
+              value:
+                success: false
+                message: "Invalid or expired refresh token"
+            revokedRefresh:
+              value:
+                success: false
+                message: "Refresh token has been revoked"
+            expiredRefresh:
+              value:
+                success: false
+                message: "Refresh token has expired"
+
+    Conflict:
+      description: |
+        A unique constraint was violated. Returned when registering with
+        an email or phone number that already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            emailTaken:
+              value:
+                success: false
+                message: "An account with this email already exists"
+            phoneTaken:
+              value:
+                success: false
+                message: "An account with this phone number already exists"
+
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "User not found"
+
+    InternalServerError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Something went wrong"
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [fullName, email, password]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "Jane Doe"
+        email:
+          type: string
+          format: email
+          example: "jane@example.com"
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 20
+          example: "+2348012345678"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          example: "StrongPass123"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "jane@example.com"
+        password:
+          type: string
+          format: password
+          example: "StrongPass123"
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+              description: Short-lived JWT access token.
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Logged out successfully"
+
+    User:
+      type: object
+      description: Sanitized user object (password is never returned).
+      properties:
+        id:
+          type: string
+          example: "clx1a2b3c0000..."
+        fullName:
+          type: string
+          example: "Jane Doe"
+        email:
+          type: string
+          format: email
+          example: "jane@example.com"
+        phone:
+          type: string
+          nullable: true
+          example: "+2348012345678"
+        role:
+          type: string
+          enum: [USER, SELLER, ADMIN]
+          example: "USER"
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+          example: "ACTIVE"
+        sellerProfile:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/SellerProfile'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SellerProfile:
+      type: object
+      nullable: true
+      description: Populated only if the user has a seller profile.
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        storeName:
+          type: string
+        # Add other seller profile fields here as your Prisma schema defines them.
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Error message"
+        errors:
+          description: Optional structured validation errors.
+          oneOf:
+            - type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+            - type: object
+      required:
+        - success
+        - message
