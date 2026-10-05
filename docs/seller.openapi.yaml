@@ -1,0 +1,588 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ API - Seller Module
+  description: |
+    Seller onboarding, profile management, and business locations.
+
+    All endpoints require a valid Bearer access token. Endpoints marked
+    with **seller** additionally require an onboarded `SellerProfile`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Seller
+    description: Seller profile and business locations.
+
+paths:
+  /api/sellers/onboard:
+    post:
+      tags: [Seller]
+      summary: Onboard as a seller
+      description: |
+        Creates a `SellerProfile` for the authenticated user with status
+        `PENDING`. Fails with `409` if the user already has a seller profile.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardSellerRequest'
+            examples:
+              basic:
+                value:
+                  businessName: "Ada Textiles Ltd"
+                  description: "Wholesale fabrics and textiles."
+                  phone: "+2348022222222"
+                  email: "sales@adatextiles.example"
+                  tradeCapabilities: ["WHOLESALE", "DISTRIBUTOR"]
+      responses:
+        '201':
+          description: Seller profile created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/sellers/me:
+    get:
+      tags: [Seller]
+      summary: Get my seller profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The seller profile, including user summary and locations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Seller]
+      summary: Update my seller profile
+      description: |
+        Partial update. At least one field is required.
+        `tradeCapabilities`, when supplied, replaces the existing set.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSellerRequest'
+      responses:
+        '200':
+          description: Seller profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/sellers/locations:
+    post:
+      tags: [Seller]
+      summary: Create a business location
+      description: |
+        Creates a location under the authenticated seller. The `countryId`,
+        `stateId`, `lgaId`, and `cityId` must form a valid hierarchy or the
+        request fails with `400`.
+
+        If `isPrimary` is `true`, any other primary location is demoted.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBusinessLocationRequest'
+      responses:
+        '201':
+          description: Business location created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Seller]
+      summary: List my business locations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Business locations ordered primary-first, then oldest-first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BusinessLocation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/sellers/locations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/SellerLocationIdParam'
+
+    get:
+      tags: [Seller]
+      summary: Get one business location
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The business location.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Seller]
+      summary: Update a business location
+      description: |
+        Partial update. If any geographic field (`countryId`, `stateId`,
+        `lgaId`, `cityId`) is provided, the resulting combination is
+        re-validated as a hierarchy.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBusinessLocationRequest'
+      responses:
+        '200':
+          description: Business location updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Seller]
+      summary: Delete a business location
+      description: |
+        The primary business location cannot be deleted — returns `400`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Business location deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SellerLocationIdParam:
+      name: id
+      in: path
+      required: true
+      description: Business location ID
+      schema:
+        type: string
+        minLength: 1
+
+  responses:
+    BadRequest:
+      description: |
+        Validation error, or an invalid geographic hierarchy
+        (e.g. state does not belong to country).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            validation:
+              value:
+                success: false
+                message: "Validation failed"
+                errors:
+                  - field: businessName
+                    message: "Business name must be at least 2 characters"
+            hierarchy:
+              value:
+                success: false
+                message: "State does not belong to the selected country"
+            primaryDelete:
+              value:
+                success: false
+                message: "The primary business location cannot be deleted"
+    Unauthorized:
+      description: Missing, malformed, or expired access token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Unauthorized"
+    Forbidden:
+      description: User is not a seller (requireSeller middleware).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Seller account required"
+    Conflict:
+      description: The user already has a seller profile.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "You already have a seller profile"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            seller:
+              value:
+                success: false
+                message: "Seller profile not found"
+            location:
+              value:
+                success: false
+                message: "Business location not found"
+            country:
+              value:
+                success: false
+                message: "Country not found"
+            state:
+              value:
+                success: false
+                message: "State not found"
+            lga:
+              value:
+                success: false
+                message: "LGA not found"
+            city:
+              value:
+                success: false
+                message: "City not found"
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            message: "Something went wrong"
+
+  schemas:
+    TradeCapability:
+      type: string
+      enum: [RETAIL, WHOLESALE, IMPORTER, EXPORTER, MANUFACTURER, DISTRIBUTOR]
+
+    SellerStatus:
+      type: string
+      enum: [PENDING, ACTIVE, SUSPENDED, CLOSED]
+
+    OnboardSellerRequest:
+      type: object
+      required: [businessName, tradeCapabilities]
+      properties:
+        businessName:
+          type: string
+          minLength: 2
+          maxLength: 150
+          example: "Ada Textiles Ltd"
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 20
+          example: "+2348022222222"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: "sales@adatextiles.example"
+        tradeCapabilities:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TradeCapability'
+
+    UpdateSellerRequest:
+      type: object
+      minProperties: 1
+      properties:
+        businessName:
+          type: string
+          minLength: 2
+          maxLength: 150
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+        tradeCapabilities:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TradeCapability'
+
+    CreateBusinessLocationRequest:
+      type: object
+      required: [name, addressLine, countryId, stateId, lgaId, cityId]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 150
+          example: "Main Warehouse"
+        addressLine:
+          type: string
+          minLength: 3
+          maxLength: 500
+          example: "12 Marina Road, Lagos Island"
+        countryId: { type: string, example: "clx-country-id" }
+        stateId:   { type: string, example: "clx-state-id" }
+        lgaId:     { type: string, example: "clx-lga-id" }
+        cityId:    { type: string, example: "clx-city-id" }
+        isPrimary:              { type: boolean, default: false }
+        isFulfillmentLocation:  { type: boolean, default: false }
+
+    UpdateBusinessLocationRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:        { type: string, minLength: 2, maxLength: 150 }
+        addressLine: { type: string, minLength: 3, maxLength: 500 }
+        countryId:   { type: string }
+        stateId:     { type: string }
+        lgaId:       { type: string }
+        cityId:      { type: string }
+        isPrimary:             { type: boolean }
+        isFulfillmentLocation: { type: boolean }
+        isActive:              { type: boolean }
+
+    SellerResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Seller profile created successfully" }
+        data:
+          $ref: '#/components/schemas/Seller'
+
+    BusinessLocationResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          $ref: '#/components/schemas/BusinessLocation'
+
+    MessageResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Business location deleted successfully" }
+
+    Seller:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        businessName: { type: string }
+        businessDescription: { type: string, nullable: true }
+        businessPhone: { type: string, nullable: true }
+        businessEmail: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/SellerStatus' }
+        tradeCapabilities:
+          type: array
+          items: { $ref: '#/components/schemas/TradeCapability' }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            fullName: { type: string }
+            email: { type: string, format: email }
+            phone: { type: string, nullable: true }
+        country: { $ref: '#/components/schemas/Country', nullable: true }
+        state:   { $ref: '#/components/schemas/State',   nullable: true }
+        lga:     { $ref: '#/components/schemas/Lga',     nullable: true }
+        locations:
+          type: array
+          items: { $ref: '#/components/schemas/BusinessLocation' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BusinessLocation:
+      type: object
+      properties:
+        id: { type: string }
+        sellerId: { type: string }
+        name: { type: string }
+        addressLine: { type: string }
+        countryId: { type: string }
+        stateId: { type: string }
+        lgaId: { type: string }
+        cityId: { type: string, nullable: true }
+        isPrimary: { type: boolean }
+        isActive: { type: boolean }
+        isFulfillmentLocation: { type: boolean }
+        country: { $ref: '#/components/schemas/Country' }
+        state:   { $ref: '#/components/schemas/State' }
+        lga:     { $ref: '#/components/schemas/Lga' }
+        city:    { $ref: '#/components/schemas/City', nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Country:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        code: { type: string }
+    State:
+      type: object
+      properties:
+        id: { type: string }
+        countryId: { type: string }
+        name: { type: string }
+        code: { type: string }
+    Lga:
+      type: object
+      properties:
+        id: { type: string }
+        stateId: { type: string }
+        name: { type: string }
+    City:
+      type: object
+      properties:
+        id: { type: string }
+        lgaId: { type: string }
+        name: { type: string }
+
+    Error:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+        errors:
+          description: Optional structured validation errors.
+          oneOf:
+            - type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+            - type: array
+              items: { type: string }
+            - type: object

@@ -39,9 +39,15 @@ const baseDoc = {
 // Later files override earlier ones on key collisions.
 // ---------------------------------------------------------------------------
 const MODULES = [
-  "common.openapi.yaml",    // optional — shared components
+  "common.openapi.yaml",
   "location.openapi.yaml",
   "auth.openapi.yaml",
+  "seller.openapi.yaml",
+  "category.openapi.yaml",
+  "brand.openapi.yaml",
+  "product.openapi.yaml",
+  "variant.openapi.yaml",
+  "inventory.openapi.yaml",
 ];
 
 // ---------------------------------------------------------------------------

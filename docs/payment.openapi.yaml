@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ Payment API
+  version: 1.0.0
+  description: Order payments via Paystack
+
+tags:
+  - name: Payments
+    description: Order payments via Paystack
+
+paths:
+  /api/payments/initiate:
+    post:
+      tags: [Payments]
+      summary: Initialize payment for an order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId]
+              properties:
+                orderId: { type: string }
+                callbackUrl: { type: string, format: uri }
+      responses:
+        "201":
+          description: Payment initialized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/payments/verify/{reference}:
+    get:
+      tags: [Payments]
+      summary: Verify a payment (non-authoritative; webhook remains source of truth)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: reference
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/payments/order/{orderId}:
+    get:
+      tags: [Payments]
+      summary: List payments for an order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Paystack webhook receiver (raw body, HMAC verified)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Raw Paystack event. Signature in x-paystack-signature header.
+      responses:
+        "200":
+          description: Acknowledged
+        "400":
+          description: Invalid request or payload
+        "401":
+          description: Invalid signature
+        "500":
+          description: Processing error (retry expected)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Success:
+      type: object
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Request successful
+        data:
+          nullable: true
+          description: Response payload
+    Error:
+      type: object
+      properties:
+        status:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties: true
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

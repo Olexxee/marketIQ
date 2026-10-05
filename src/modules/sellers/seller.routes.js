@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { authenticate } from "../../middleware/authenticate.js";
-import { validateBody, validateParams } from "../../middleware/validate.js";
+import { authenticate } from "../../middlewares/authenticate.js";
+import { validateBody, validateParams } from "../../middlewares/validateMiddleware.js";
 import {
   onboardSellerSchema,
   updateSellerSchema,
@@ -8,9 +8,7 @@ import {
   updateBusinessLocationSchema,
   sellerLocationIdParamSchema,
 } from "./seller.validation.js";
-import { requireSeller } from "./seller.middleware.js";
-
-
+import { requireSeller } from "../../middlewares/seller.middleware.js";
 import {
   onboard,
   getMe,
@@ -22,18 +20,19 @@ import {
   deleteLocation,
 } from "./seller.controller.js";
 
-const router = Router();
 
-router.post(
+const sellerRouter = Router();
+
+sellerRouter.post(
   "/onboard",
   authenticate,
   validateBody(onboardSellerSchema),
   onboard,
 );
 
-router.get("/me", authenticate, requireSeller, getMe);
+sellerRouter.get("/me", authenticate, requireSeller, getMe);
 
-router.patch(
+sellerRouter.patch(
   "/me",
   authenticate,
   requireSeller,
@@ -41,7 +40,7 @@ router.patch(
   updateMe,
 );
 
-router.post(
+sellerRouter.post(
   "/locations",
   authenticate,
   requireSeller,
@@ -49,9 +48,9 @@ router.post(
   createLocation,
 );
 
-router.get("/locations", authenticate, requireSeller, listLocations);
+sellerRouter.get("/locations", authenticate, requireSeller, listLocations);
 
-router.get(
+sellerRouter.get(
   "/locations/:id",
   authenticate,
   requireSeller,
@@ -59,7 +58,7 @@ router.get(
   getLocation,
 );
 
-router.patch(
+sellerRouter.patch(
   "/locations/:id",
   authenticate,
   requireSeller,
@@ -68,7 +67,7 @@ router.patch(
   updateLocation,
 );
 
-router.delete(
+sellerRouter.delete(
   "/locations/:id",
   authenticate,
   requireSeller,
@@ -76,4 +75,4 @@ router.delete(
   deleteLocation,
 );
 
-export default router;
+export default sellerRouter;

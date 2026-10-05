@@ -1,0 +1,194 @@
+openapi: 3.0.3
+info:
+  title: Inventory API
+  version: 1.0.0
+  description: Location-aware stock ledger for seller inventory management
+
+tags:
+  - name: Inventory
+    description: Location-aware stock ledger
+
+paths:
+  /api/seller/inventory:
+    get:
+      tags: [Inventory]
+      summary: List seller inventory rows
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: variantId
+          schema: { type: string }
+        - in: query
+          name: locationId
+          schema: { type: string }
+        - in: query
+          name: isActive
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Paginated inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/seller/inventory/stock-in:
+    post:
+      tags: [Inventory]
+      summary: Add stock to a variant at a business location
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantId, locationId, quantity]
+              properties:
+                variantId: { type: string }
+                locationId: { type: string }
+                quantity: { type: integer, minimum: 1, example: 10 }
+                reference: { type: string }
+                note: { type: string }
+      responses:
+        "200":
+          description: Stock added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/seller/inventory/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+
+    get:
+      tags: [Inventory]
+      summary: Get an inventory row
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Inventory row
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/seller/inventory/{id}/adjust:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+
+    post:
+      tags: [Inventory]
+      summary: Adjust inventory quantity
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [delta]
+              properties:
+                delta:
+                  type: integer
+                  description: Positive or negative, non-zero
+                  example: -3
+                reference: { type: string }
+                note: { type: string }
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/seller/inventory/{id}/reorder-level:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+
+    patch:
+      tags: [Inventory]
+      summary: Set reorder level
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reorderLevel]
+              properties:
+                reorderLevel: { type: integer, minimum: 0, example: 20 }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/seller/inventory/{id}/movements:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+
+    get:
+      tags: [Inventory]
+      summary: List movements for an inventory row
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Paginated movements
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }

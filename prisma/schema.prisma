@@ -122,6 +122,8 @@ enum ReviewStatus {
 enum InventoryMovementType {
   STOCK_IN
   STOCK_OUT
+  RESERVE
+  RELEASE
   ADJUSTMENT
   SALE
   RETURN
@@ -177,6 +179,106 @@ enum ShippingMethod {
   DIGITAL
 }
 
+enum MarketActivityType {
+  PRODUCT_VIEW
+  PRODUCT_SEARCH
+  CATEGORY_VIEW
+  SELLER_VIEW
+  PRODUCT_FAVORITED
+  PRODUCT_UNFAVORITED
+  PRODUCT_ADDED_TO_CART
+  PRODUCT_REMOVED_FROM_CART
+  SOURCING_REQUEST_CREATED
+  SOURCING_RESPONSE_SUBMITTED
+  ORDER_CREATED
+  ORDER_COMPLETED
+  ORDER_CANCELLED
+  PAYMENT_COMPLETED
+}
+
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model OutboxEvent {
+  id String @id @default(cuid())
+
+  eventType String
+  aggregateType String
+  aggregateId String
+
+  payload Json
+
+  status OutboxEventStatus @default(PENDING)
+
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  processedAt DateTime?
+  lastError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, availableAt])
+  @@index([eventType, createdAt])
+  @@index([aggregateType, aggregateId])
+}
+
+model MarketActivity {
+  id String @id @default(cuid())
+
+  activityType MarketActivityType
+
+  userId String?
+
+  productId String?
+  variantId String?
+  sellerId String?
+  categoryId String?
+  brandId String?
+  collectionId String?
+
+  countryId String?
+  stateId String?
+  lgaId String?
+  cityId String?
+
+  quantity Int?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  seller SellerProfile? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand Brand? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  state State? @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  lga Lga? @relation(fields: [lgaId], references: [id], onDelete: SetNull)
+  city City? @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
+  @@index([activityType, createdAt])
+  @@index([userId, createdAt])
+  @@index([productId, activityType, createdAt])
+  @@index([variantId, activityType, createdAt])
+  @@index([sellerId, activityType, createdAt])
+  @@index([categoryId, activityType, createdAt])
+  @@index([countryId, activityType, createdAt])
+  @@index([stateId, activityType, createdAt])
+  @@index([lgaId, activityType, createdAt])
+  @@index([cityId, activityType, createdAt])
+  @@index([createdAt])
+}
+
 // ============================================================
 // USER & AUTHENTICATION
 // ============================================================
@@ -208,6 +310,7 @@ model User {
   sourcingResponses SourcingResponse[]
   sourcingMessages  SourcingMessage[]
   reviewResponses   ReviewResponse[]
+  marketActivities  MarketActivity[]
 
   @@index([role])
   @@index([status])
@@ -246,6 +349,7 @@ model Country {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+  marketActivities MarketActivity[]
 }
 
 model State {
@@ -267,6 +371,7 @@ model State {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+  marketActivities MarketActivity[]
 
   @@unique([countryId, code])
   @@unique([countryId, name])
@@ -291,6 +396,7 @@ model Lga {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+  marketActivities MarketActivity[]
 
   @@unique([stateId, name])
   @@index([stateId])
@@ -311,6 +417,7 @@ model City {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+  marketActivities MarketActivity[]
 
   @@unique([lgaId, name])
   @@index([lgaId])
@@ -385,11 +492,16 @@ model SellerProfile {
 
   locations    BusinessLocation[]
   products     Product[]
+  variants     ProductVariant[]
   sellerOrders SellerOrder[]
   warehouses   Warehouse[]
 
   sourcingResponses SourcingResponse[]
   tradeCapabilities SellerTradeCapability[]
+  marketActivities  MarketActivity[]
+
+  // NEW: unified media back-relation
+  media Media[]
 
   @@index([stateId])
   @@index([lgaId])
@@ -423,8 +535,9 @@ model BusinessLocation {
   lga     Lga     @relation(fields: [lgaId], references: [id])
   city    City?   @relation(fields: [cityId], references: [id])
 
-  inventory  Inventory[]
-  warehouses Warehouse[]
+  inventory          Inventory[]
+  warehouses         Warehouse[]
+  reservedOrderItems OrderItem[]
 
   @@index([sellerId])
   @@index([stateId])
@@ -457,6 +570,10 @@ model Category {
   products Product[]
 
   sourcingRequests SourcingRequest[]
+  marketActivities MarketActivity[]
+
+  // NEW: unified media back-relation
+  media Media[]
 
   @@index([parentId])
   @@index([isActive])
@@ -474,6 +591,10 @@ model Brand {
   updatedAt DateTime @updatedAt
 
   products Product[]
+  marketActivities MarketActivity[]
+
+  // NEW: unified media back-relation
+  media Media[]
 }
 
 model Collection {
@@ -486,8 +607,12 @@ model Collection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  marketActivities MarketActivity[]
 
   products Product[]
+
+  // NEW: unified media back-relation
+  media Media[]
 }
 
 model Product {
@@ -496,7 +621,7 @@ model Product {
   sellerId String
 
   name        String
-  slug        String  @unique
+  slug        String
   description String?
 
   brandId      String?
@@ -524,7 +649,12 @@ model Product {
   wishlists Wishlist[]
 
   sourcingResponses SourcingResponse[]
+  marketActivities  MarketActivity[]
 
+  // NEW: unified media back-relation
+  media Media[]
+
+  @@unique([sellerId, slug])
   @@index([sellerId])
   @@index([categoryId])
   @@index([brandId])
@@ -536,8 +666,9 @@ model ProductVariant {
   id String @id @default(cuid())
 
   productId String
+  sellerId  String
 
-  sku String @unique
+  sku String
 
   name String?
 
@@ -563,9 +694,9 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller  SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  media       VariantMedia[]
   inventories Inventory[]
   cartItems   CartItem[]
   orderItems  OrderItem[]
@@ -576,26 +707,68 @@ model ProductVariant {
   wishlistReferences Wishlist[]
 
   sourcingResponses SourcingResponse[]
+  marketActivities  MarketActivity[]
 
+  // NEW: unified media back-relation (replaces VariantMedia[])
+  media Media[]
+
+  @@unique([sellerId, sku])
   @@index([productId])
+  @@index([sellerId])
   @@index([isActive])
 }
 
-model VariantMedia {
-  id        String @id @default(cuid())
-  variantId String
+// ============================================================
+// MEDIA (unified, replaces VariantMedia and ReviewImage)
+// ============================================================
 
-  url      String
-  publicId String?
+model Media {
+  id String @id @default(cuid())
+
+  url          String
+  thumbnailUrl String?
+  publicId     String?
+
+  mimeType String?
+  bytes    Int?
+  format   String?
+  width    Int?
+  height   Int?
+
+  alt String?
 
   isPrimary Boolean @default(false)
   sortOrder Int     @default(0)
 
+  // Exactly one owner must be set. Enforced at service + DB level.
+  productId         String?
+  variantId         String?
+  categoryId        String?
+  brandId           String?
+  collectionId      String?
+  reviewId          String?
+  sellerId          String?
+  sourcingRequestId String?
+
   createdAt DateTime @default(now())
 
-  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product         Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  brand           Brand?           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  collection      Collection?      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  review          Review?          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  seller          SellerProfile?   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sourcingRequest SourcingRequest? @relation(fields: [sourcingRequestId], references: [id], onDelete: Cascade)
 
+  @@index([productId])
   @@index([variantId])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([collectionId])
+  @@index([reviewId])
+  @@index([sellerId])
+  @@index([sourcingRequestId])
 }
 
 // ============================================================
@@ -613,6 +786,8 @@ model Inventory {
 
   reorderLevel Int @default(0)
 
+  version Int @default(0)
+
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -621,7 +796,8 @@ model Inventory {
   variant  ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
   location BusinessLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
-  movements InventoryMovement[]
+  movements  InventoryMovement[]
+  orderItems OrderItem[]
 
   @@unique([variantId, locationId])
   @@index([variantId])
@@ -633,10 +809,17 @@ model InventoryMovement {
 
   inventoryId String
 
-  type      InventoryMovementType
-  quantity  Int
-  reference String?
-  note      String?
+  type InventoryMovementType
+
+  quantityDelta Int
+  reservedDelta Int
+
+  quantityAfter Int
+  reservedAfter Int
+
+  reference      String?
+  note           String?
+  idempotencyKey String? @unique
 
   createdAt DateTime @default(now())
 
@@ -737,6 +920,9 @@ model SourcingRequest {
   messages  SourcingMessage[]
 
   order Order?
+
+  // NEW: unified media back-relation
+  media Media[]
 
   @@index([buyerId])
   @@index([categoryId])
@@ -864,7 +1050,8 @@ model Order {
 
   paymentTerm TradePaymentTerm @default(PREPAID)
 
-  status OrderStatus @default(PENDING)
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
 
   notes String?
 
@@ -889,6 +1076,7 @@ model Order {
   @@index([buyerId])
   @@index([type])
   @@index([status])
+  @@index([paymentStatus])
   @@index([createdAt])
 }
 
@@ -934,6 +1122,9 @@ model OrderItem {
   sellerOrderId String?
   variantId     String
 
+  inventoryId        String?
+  reservedLocationId String?
+
   quantity Int
 
   unitPriceSnapshot Decimal @db.Decimal(12, 2)
@@ -953,9 +1144,14 @@ model OrderItem {
 
   variant ProductVariant @relation(fields: [variantId], references: [id])
 
+  inventory        Inventory?        @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+  reservedLocation BusinessLocation? @relation(fields: [reservedLocationId], references: [id], onDelete: SetNull)
+
   @@index([orderId])
   @@index([sellerOrderId])
   @@index([variantId])
+  @@index([inventoryId])
+  @@index([reservedLocationId])
 }
 
 // ============================================================
@@ -1120,30 +1316,15 @@ model Review {
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
-  images   ReviewImage[]
+  // NEW: unified media back-relation (replaces images ReviewImage[])
+  media Media[]
+
   response ReviewResponse?
 
   @@index([userId])
   @@index([variantId])
   @@index([orderId])
   @@index([status])
-}
-
-model ReviewImage {
-  id String @id @default(cuid())
-
-  reviewId String
-
-  url      String
-  publicId String?
-
-  sortOrder Int @default(0)
-
-  createdAt DateTime @default(now())
-
-  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-
-  @@index([reviewId])
 }
 
 model ReviewResponse {

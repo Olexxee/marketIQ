@@ -1,0 +1,271 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ API
+  version: 1.0.0
+  description: Shared OpenAPI components for the MarketIQ API.
+
+paths: {}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access JWT issued by POST /api/auth/login. Send as:
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    PageParam:
+      in: query
+      name: page
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for offset pagination.
+
+    LimitParam:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Page size.
+
+    SearchParam:
+      in: query
+      name: search
+      schema:
+        type: string
+        minLength: 1
+      description: Case-insensitive search on name / slug / description.
+
+  schemas:
+    ErrorCode:
+      type: string
+      enum:
+        - BAD_REQUEST
+        - VALIDATION_ERROR
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - CONFLICT
+        - RATE_LIMITED
+        - INTERNAL_SERVER_ERROR
+
+    ErrorFieldIssue:
+      type: object
+      required: [path, message]
+      properties:
+        path:
+          type: string
+          example: "variants.0.price"
+        message:
+          type: string
+          example: "Expected number, received string"
+        code:
+          type: string
+          nullable: true
+          example: "invalid_type"
+
+    ErrorDetails:
+      type: object
+      properties:
+        body:
+          type: array
+          items: { $ref: "#/components/schemas/ErrorFieldIssue" }
+        query:
+          type: array
+          items: { $ref: "#/components/schemas/ErrorFieldIssue" }
+        params:
+          type: array
+          items: { $ref: "#/components/schemas/ErrorFieldIssue" }
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: "#/components/schemas/ErrorCode" }
+            message:
+              type: string
+              example: "Product not found"
+            statusCode:
+              type: integer
+              example: 404
+            details:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/ErrorDetails"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00.000Z"
+
+    PaginationMeta:
+      type: object
+      required: [page, limit, total, totalPages, hasNextPage, hasPrevPage]
+      properties:
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+        total: { type: integer, example: 128 }
+        totalPages: { type: integer, example: 7 }
+        hasNextPage: { type: boolean, example: true }
+        hasPrevPage: { type: boolean, example: false }
+
+    Success:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+        data: {}
+        meta:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/PaginationMeta"
+
+    MediaAsset:
+      type: object
+      required: [id, url, isPrimary, sortOrder]
+      properties:
+        id: { type: string, example: "clx0000000000" }
+        url: { type: string, format: uri }
+        thumbnailUrl: { type: string, format: uri, nullable: true }
+        publicId: { type: string, nullable: true }
+        mimeType: { type: string, nullable: true, example: "image/jpeg" }
+        bytes: { type: integer, nullable: true }
+        format: { type: string, nullable: true, example: "jpg" }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        alt: { type: string, nullable: true }
+        isPrimary: { type: boolean }
+        sortOrder: { type: integer }
+
+    MediaAssetInput:
+      type: object
+      description: |
+        Media asset shape produced server-side by the upload middleware.
+        Clients send files via multipart; this schema is used when testing
+        with JSON bodies.
+      properties:
+        url: { type: string, format: uri }
+        thumbnailUrl: { type: string, format: uri, nullable: true }
+        publicId: { type: string, nullable: true }
+        mimeType: { type: string, nullable: true }
+        bytes: { type: integer, nullable: true }
+        format: { type: string, nullable: true }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        alt: { type: string, nullable: true }
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: BAD_REQUEST
+              message: "Invalid request"
+              statusCode: 400
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    ValidationError:
+      description: One or more fields failed schema validation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: "Validation failed"
+              statusCode: 422
+              details:
+                body:
+                  - path: "name"
+                    message: "Required"
+                    code: "invalid_type"
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    Unauthorized:
+      description: Missing or invalid access token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: "Authentication required"
+              statusCode: 401
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    Forbidden:
+      description: Authenticated but not allowed to perform this action.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: FORBIDDEN
+              message: "You do not have permission to perform this action"
+              statusCode: 403
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    NotFound:
+      description: Resource does not exist.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: NOT_FOUND
+              message: "Resource not found"
+              statusCode: 404
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    Conflict:
+      description: Request conflicts with current state.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: CONFLICT
+              message: "A brand with this name already exists"
+              statusCode: 409
+            timestamp: "2025-01-01T12:00:00.000Z"
+
+    InternalServerError:
+      description: Unhandled server error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            success: false
+            error:
+              code: INTERNAL_SERVER_ERROR
+              message: "Something went wrong"
+              statusCode: 500
+            timestamp: "2025-01-01T12:00:00.000Z"

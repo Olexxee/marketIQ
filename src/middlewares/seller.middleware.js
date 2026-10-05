@@ -1,5 +1,5 @@
-import { NotFoundError } from "../../classes/errorClasses.js";
-import { findSellerByUserId } from "./seller.db.js";
+import { NotFoundError } from "../classes/errorClasses.js";
+import { findSellerByUserId } from "../modules/sellers/seller.db.js";
 
 export const requireSeller = async (req, res, next) => {
   try {

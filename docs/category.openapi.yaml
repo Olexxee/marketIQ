@@ -1,0 +1,511 @@
+openapi: 3.0.3
+info:
+  title: Categories API
+  version: 1.0.0
+  description: |
+    Category hierarchy, tree, and search.
+
+    Slugs are generated automatically from the category name and cannot be
+    set by clients.
+
+    **Suggested test order (uses the example data in this file):**
+    1. `POST /api/categories` with the **Root category** example, then copy the returned `id`.
+    2. `POST /api/categories` with the **Child category** example, replacing `parentId` with that `id`.
+    3. `GET /api/categories/tree` to see the nesting.
+    4. `GET /api/categories?rootOnly=true` and `GET /api/categories?search=phones`.
+    5. `PATCH /api/categories/{id}` to rename (the slug regenerates).
+    6. `DELETE` the child, then the root. Deleting the root first returns 409.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Categories
+    description: Category hierarchy, tree, and search
+
+paths:
+  /api/categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      security: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [PRODUCT, SERVICE, CONTENT]
+          example: PRODUCT
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+          example: true
+        - in: query
+          name: parentId
+          description: Return only direct children of this category
+          schema:
+            type: string
+          example: clx1a2b3c0000abcd1234efgh
+        - in: query
+          name: rootOnly
+          description: Return only top-level categories (takes priority over parentId)
+          schema:
+            type: boolean
+          example: true
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Paginated categories
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Categories retrieved successfully
+                data:
+                  - id: clx1a2b3c0000abcd1234efgh
+                    name: Electronics
+                    slug: electronics
+                    description: Phones, laptops and accessories
+                    type: PRODUCT
+                    parentId: null
+                    isActive: true
+                    sortOrder: 1
+                    media: []
+                    parent: null
+                    _count: { children: 1, products: 0, sourcingRequests: 0 }
+                meta:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    post:
+      tags: [Categories]
+      summary: Create a category
+      description: |
+        Requires an ADMIN or STAFF account. Send either JSON (with already-uploaded
+        media objects) or multipart/form-data (with files). The slug is generated
+        from `name`; a duplicate slug becomes `name-2`, `name-3`, and so on.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: Electronics }
+                description:
+                  type: string
+                  example: Phones, laptops and accessories
+                type:
+                  type: string
+                  enum: [PRODUCT, SERVICE, CONTENT]
+                  default: PRODUCT
+                parentId:
+                  type: string
+                  nullable: true
+                  description: Omit, or send an empty string, for a top-level category
+                isActive: { type: boolean, example: true }
+                sortOrder: { type: integer, example: 1 }
+                coverImage:
+                  type: string
+                  format: binary
+                galleryImages:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                type:
+                  type: string
+                  enum: [PRODUCT, SERVICE, CONTENT]
+                  default: PRODUCT
+                parentId: { type: string, nullable: true }
+                isActive: { type: boolean }
+                sortOrder: { type: integer }
+                coverImage:
+                  $ref: "#/components/schemas/MediaAssetInput"
+                galleryImages:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MediaAssetInput"
+            examples:
+              Root category:
+                summary: Top-level PRODUCT category
+                value:
+                  name: Electronics
+                  description: Phones, laptops and accessories
+                  type: PRODUCT
+                  isActive: true
+                  sortOrder: 1
+              Child category:
+                summary: Child of Electronics (replace parentId with the real id)
+                value:
+                  name: Phones & Tablets
+                  description: Smartphones, tablets and accessories
+                  type: PRODUCT
+                  parentId: clx1a2b3c0000abcd1234efgh
+                  isActive: true
+                  sortOrder: 1
+              Service category:
+                summary: Top-level SERVICE category
+                value:
+                  name: Logistics & Delivery
+                  description: Courier, freight and last-mile delivery
+                  type: SERVICE
+                  isActive: true
+                  sortOrder: 2
+              Category with media:
+                summary: Includes cover and gallery images
+                value:
+                  name: Fashion
+                  description: Clothing, shoes and accessories
+                  type: PRODUCT
+                  isActive: true
+                  sortOrder: 3
+                  coverImage:
+                    url: https://res.cloudinary.com/demo/image/upload/v1/categories/fashion-cover.jpg
+                    publicId: categories/fashion-cover
+                  galleryImages:
+                    - url: https://res.cloudinary.com/demo/image/upload/v1/categories/fashion-1.jpg
+                      publicId: categories/fashion-1
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Category created successfully
+                data:
+                  id: clx1a2b3c0000abcd1234efgh
+                  name: Electronics
+                  slug: electronics
+                  description: Phones, laptops and accessories
+                  type: PRODUCT
+                  parentId: null
+                  isActive: true
+                  sortOrder: 1
+                  media: []
+                  parent: null
+                  children: []
+                  _count: { children: 0, products: 0, sourcingRequests: 0 }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/categories/tree:
+    get:
+      tags: [Categories]
+      summary: Full category tree
+      security: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [PRODUCT, SERVICE, CONTENT]
+          example: PRODUCT
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+          example: true
+        - $ref: "#/components/parameters/SearchParam"
+      responses:
+        "200":
+          description: Tree of categories
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Category tree retrieved successfully
+                data:
+                  - id: clx1a2b3c0000abcd1234efgh
+                    name: Electronics
+                    slug: electronics
+                    type: PRODUCT
+                    parentId: null
+                    isActive: true
+                    sortOrder: 1
+                    children:
+                      - id: clx9z8y7w0000dcba4321hgfe
+                        name: Phones & Tablets
+                        slug: phones-tablets
+                        type: PRODUCT
+                        parentId: clx1a2b3c0000abcd1234efgh
+                        isActive: true
+                        sortOrder: 1
+                        children: []
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/categories/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+        example: clx1a2b3c0000abcd1234efgh
+
+    get:
+      tags: [Categories]
+      summary: Get a category
+      security: []
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Category retrieved successfully
+                data:
+                  id: clx1a2b3c0000abcd1234efgh
+                  name: Electronics
+                  slug: electronics
+                  description: Phones, laptops and accessories
+                  type: PRODUCT
+                  parentId: null
+                  isActive: true
+                  sortOrder: 1
+                  media: []
+                  parent: null
+                  children:
+                    - id: clx9z8y7w0000dcba4321hgfe
+                      name: Phones & Tablets
+                      slug: phones-tablets
+                  _count: { children: 1, products: 0, sourcingRequests: 0 }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    patch:
+      tags: [Categories]
+      summary: Update a category
+      description: |
+        Requires an ADMIN or STAFF account. All fields are optional. The slug is
+        regenerated from the new name when `name` changes. A category's `type`
+        cannot be changed after creation. Uploading new media replaces the
+        existing media.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name: { type: string, example: Consumer Electronics }
+                description: { type: string }
+                parentId:
+                  type: string
+                  nullable: true
+                  description: Send an empty string to move the category to the top level
+                isActive: { type: boolean }
+                sortOrder: { type: integer }
+                coverImage:
+                  type: string
+                  format: binary
+                galleryImages:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                parentId: { type: string, nullable: true }
+                isActive: { type: boolean }
+                sortOrder: { type: integer }
+                coverImage:
+                  $ref: "#/components/schemas/MediaAssetInput"
+                galleryImages:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MediaAssetInput"
+            examples:
+              Rename:
+                summary: Rename (slug becomes consumer-electronics)
+                value:
+                  name: Consumer Electronics
+              Deactivate:
+                value:
+                  isActive: false
+              Reorder:
+                value:
+                  sortOrder: 5
+              Move to top level:
+                value:
+                  parentId: null
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Category updated successfully
+                data:
+                  id: clx1a2b3c0000abcd1234efgh
+                  name: Consumer Electronics
+                  slug: consumer-electronics
+                  type: PRODUCT
+                  parentId: null
+                  isActive: true
+                  sortOrder: 1
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    delete:
+      tags: [Categories]
+      summary: Delete a category
+      description: |
+        Requires an ADMIN account. Returns 409 if the category has child
+        categories, products, or sourcing requests.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+              example:
+                success: true
+                message: Category deleted successfully
+                data: null
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SearchParam:
+      in: query
+      name: search
+      description: Matches name, slug or description (case-insensitive)
+      schema: { type: string }
+      example: phones
+    PageParam:
+      in: query
+      name: page
+      schema: { type: integer, minimum: 1, default: 1 }
+    LimitParam:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  schemas:
+    Success:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: {}
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+            totalPages: { type: integer }
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+        errors:
+          type: array
+          items: { type: object }
+    MediaAssetInput:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+        publicId: { type: string }
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            success: false
+            message: Validation failed
+            errors:
+              - path: name
+                message: String must contain at least 1 character(s)
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { success: false, message: Authentication required }
+    Forbidden:
+      description: Role not allowed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { success: false, message: You do not have permission to perform this action }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { success: false, message: Category not found }
+    Conflict:
+      description: Conflicts with existing data
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            success: false
+            message: A category with this name already exists under this parent
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { success: false, message: Internal server error }

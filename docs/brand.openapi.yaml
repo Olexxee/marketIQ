@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Brand API
+  version: 1.0.0
+  description: Brand catalog
+
+tags:
+  - name: Brands
+    description: Brand catalog
+
+paths:
+  /api/brands:
+    get:
+      tags: [Brands]
+      summary: List brands
+      security: []
+      parameters:
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Paginated brands
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    post:
+      tags: [Brands]
+      summary: Create a brand
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                description: { type: string }
+                isActive: { type: boolean }
+                coverImage:
+                  type: string
+                  format: binary
+                galleryImages:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                description: { type: string }
+                isActive: { type: boolean }
+                coverImage:
+                  $ref: "#/components/schemas/MediaAssetInput"
+                galleryImages:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MediaAssetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+  /api/brands/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+
+    get:
+      tags: [Brands]
+      summary: Get a brand
+      security: []
+      responses:
+        "200":
+          description: Brand
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    patch:
+      tags: [Brands]
+      summary: Update a brand
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                description: { type: string }
+                isActive: { type: boolean }
+                coverImage:
+                  type: string
+                  format: binary
+                galleryImages:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+
+    delete:
+      tags: [Brands]
+      summary: Delete a brand
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalServerError" }

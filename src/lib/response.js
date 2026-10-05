@@ -1,5 +1,3 @@
-// lib/response.js
-
 export const successResponse = ({
   res,
   statusCode = 200,
