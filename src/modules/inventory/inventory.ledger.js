@@ -95,6 +95,22 @@ export const reserveInventoryForOrderItem = async (
     tx,
   );
 
+   await publishEvent(
+     {
+       eventType: EVENT_TYPES.INVENTORY_RESERVED,
+       aggregateType: "INVENTORY",
+       aggregateId: inventory.id,
+       payload: {
+         inventoryId: inventory.id,
+         variantId,
+         orderId,
+         orderItemId,
+         quantityReserved: quantity,
+       },
+     },
+     tx,
+   );
+
   return {
     inventoryId: inventory.id,
     reservedLocationId: location.id,
@@ -184,6 +200,22 @@ export const commitSaleForOrderItem = async (orderItem, tx) => {
       reservedAfter: nextReserved,
       idempotencyKey: `${orderItem.id}:commit`,
       reference: orderItem.orderId,
+    },
+    tx,
+  );
+
+  await publishEvent(
+    {
+      eventType: EVENT_TYPES.INVENTORY_COMMITTED,
+      aggregateType: "INVENTORY",
+      aggregateId: orderItem.inventoryId,
+      payload: {
+        inventoryId: orderItem.inventoryId,
+        variantId: locked.variantId,
+        orderId: orderItem.orderId,
+        orderItemId: orderItem.id,
+        quantityCommitted: orderItem.quantity,
+      },
     },
     tx,
   );

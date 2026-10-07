@@ -100,6 +100,21 @@ export const stockInService = async (sellerId, payload) => {
       tx,
     );
 
+    await publishEvent(
+      {
+        eventType: EVENT_TYPES.INVENTORY_STOCKED_IN,
+        aggregateType: "INVENTORY",
+        aggregateId: row.id,
+        payload: {
+          inventoryId: row.id,
+          variantId: row.variantId,
+          quantityAdded: quantity,
+          reference: reference || null,
+        },
+      },
+      tx,
+    );
+
     return findInventoryById(row.id, tx);
   });
 };
@@ -158,6 +173,21 @@ export const adjustService = async (sellerId, inventoryId, payload) => {
       },
       tx,
     );
+
+     await publishEvent(
+       {
+         eventType: EVENT_TYPES.INVENTORY_ADJUSTED,
+         aggregateType: "INVENTORY",
+         aggregateId: inventoryId,
+         payload: {
+           inventoryId,
+           variantId: locked.variantId,
+           quantityDelta: delta,
+           reference: reference || null,
+         },
+       },
+       tx,
+     );
 
     return findInventoryById(inventoryId, tx);
   });

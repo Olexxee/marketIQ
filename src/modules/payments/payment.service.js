@@ -1,23 +1,19 @@
 import { randomUUID } from "node:crypto";
-
 import {
   BadRequestError,
   ConflictError,
   NotFoundError,
 } from "../../classes/errorClasses.js";
-
 import {
   initializeTransaction,
   verifyTransaction,
 } from "../../config/paystack.js";
-
 import {
   commitSaleForOrderItem,
   releaseReservationForOrderItem,
 } from "../inventory/inventory.ledger.js";
-
-import { recalculateOrderStatus } from "../orders/order.status.service.js";
-
+import { publishEvent } from "../../events/event.publisher.js";
+import { EVENT_TYPES } from "../../events/event.types.js";
 import {
   createPayment,
   findBuyerEmail,
@@ -32,6 +28,8 @@ import {
   updatePayment,
   withTransaction,
 } from "./payment.db.js";
+
+
 
 // ============================================================
 // HELPERS
@@ -292,6 +290,23 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
 
     await updateManySellerOrderStatusByOrder(payment.orderId, "CONFIRMED", tx);
     await recalculateOrderStatus(payment.orderId, tx);
+
+    await publishEvent(
+      {
+        eventType: EVENT_TYPES.PAYMENT_COMPLETED,
+        aggregateType: "PAYMENT",
+        aggregateId: payment.id,
+        payload: {
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          amount: Number(payment.amount),
+          currency: payment.currency,
+          provider: payment.provider,
+          reference: payment.reference,
+        },
+      },
+      tx,
+    );
   });
 };
 
@@ -323,6 +338,21 @@ const applyFailedPayment = async (paymentId, rawEvent) => {
 
     await updateManySellerOrderStatusByOrder(payment.orderId, "CANCELLED", tx);
     await recalculateOrderStatus(payment.orderId, tx);
+    
+    await publishEvent(
+      {
+        eventType: EVENT_TYPES.PAYMENT_FAILED,
+        aggregateType: "PAYMENT",
+        aggregateId: payment.id,
+        payload: {
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          reference: payment.reference,
+          reason: rawEvent?.data?.gateway_response || "Payment failed",
+        },
+      },
+      tx,
+    );
   });
 };
 

@@ -1,6 +1,5 @@
 import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { successResponse } from "../../lib/response.js";
-
 import { checkoutService } from "./checkout.service.js";
 
 export const checkout = asyncWrapper(async (req, res) => {

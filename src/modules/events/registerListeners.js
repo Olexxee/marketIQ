@@ -1,7 +1,9 @@
-import { EVENT_TYPES } from "./event.types.js";
 import { registerEventListener } from "./event.registry.js";
-import { handleOrderCreated } from "../modules/market-activity/marketActivity.listeners.js";
+import { marketActivityListeners } from "../market-activity/marketActivity.listener-map.js";
+import { handleMarketActivityEvent } from "../market-activity/marketActivity.listeners.js";
 
 export const registerEventListeners = () => {
-  registerEventListener(EVENT_TYPES.ORDER_CREATED, handleOrderCreated);
+  for (const eventType of marketActivityListeners) {
+    registerEventListener(eventType, handleMarketActivityEvent);
+  }
 };

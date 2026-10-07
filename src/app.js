@@ -23,6 +23,9 @@ import catalogRouter from "./modules/categories/category.routes.js";
 import brandRouter from "./modules/brands/brand.routes.js";
 import collectionRouter from "./modules/collections/collection.routes.js";
 import cartRouter from "./modules/cart/cart.routes.js";
+import orderRouter from "./modules/orders/order.routes.js";
+import checkoutRouter from "./modules/checkout/checkout.routes.js";
+import paymentRouter from "./modules/payments/payment.routes.js";
 import { paystackWebhook } from "./modules/payments/payment.webhook.js";
 
 import productRouter from "./modules/products/product.routes.js";
@@ -106,6 +109,9 @@ app.use("/api/categories", catalogRouter);
 app.use("/api/brands", brandRouter);
 app.use("/api/collections", collectionRouter);
 app.use("/api/cart", cartRouter);
+app.use("/api/order", orderRouter)
+app.use("/api/checkout", checkoutRouter)
+app.use("/api/checkout", paymentRouter)
 
 // ------------------------------------------------------------
 // Public catalog

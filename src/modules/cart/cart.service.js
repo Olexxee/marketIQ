@@ -132,8 +132,8 @@ const recordCartAddition = async (
         cartItemId,
         productId: variant.product.id,
         variantId: variant.id,
-        sellerId: variant.product.seller.id, // ✅ Fixed: was incorrectly variant.sellerId
-        quantity, // ✅ Fixed: was incorrectly quantityAdded
+        sellerId: variant.product.seller.id, 
+        quantity, 
       },
     },
     tx,
@@ -147,7 +147,7 @@ const recordCartRemoval = async (
   // ✅ Standardized to publishEvent to match the Outbox pattern used in additions
   await publishEvent(
     {
-      eventType: EVENT_TYPES.PRODUCT_REMOVED_FROM_CART, // Ensure this exists in EVENT_TYPES
+      eventType: EVENT_TYPES.PRODUCT_REMOVED_FROM_CART,
       aggregateType: "CART_ITEM",
       aggregateId: cartItemId,
       payload: {

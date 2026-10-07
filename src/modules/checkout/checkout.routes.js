@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { checkout } from "./checkout.controller.js";
 import { checkoutSchema } from "./checkout.validation.js";
-import { validateBody } from "../../middlewares/validate.middleware.js";
-import { authenticate } from "../../middlewares/auth.middleware.js";
+import { validateBody } from "../../middlewares/validateMiddleware.js";
+import { authenticate } from "../../middlewares/authenticate.js";
 
-const router = Router();
+const checkoutRouter = Router();
 
-router.post("/", authenticate, validateBody(checkoutSchema), checkout);
+checkoutRouter.post("/", authenticate, validateBody(checkoutSchema), checkout);
 
-export default router;
+export default checkoutRouter;

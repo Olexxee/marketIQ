@@ -180,20 +180,42 @@ enum ShippingMethod {
 }
 
 enum MarketActivityType {
+  // Discovery
   PRODUCT_VIEW
   PRODUCT_SEARCH
   CATEGORY_VIEW
   SELLER_VIEW
+
+  // Intent
   PRODUCT_FAVORITED
   PRODUCT_UNFAVORITED
   PRODUCT_ADDED_TO_CART
   PRODUCT_REMOVED_FROM_CART
+
+  // Sourcing
   SOURCING_REQUEST_CREATED
   SOURCING_RESPONSE_SUBMITTED
+
+  // Commerce
   ORDER_CREATED
-  ORDER_COMPLETED
   ORDER_CANCELLED
+  ORDER_COMPLETED
+
+  // Payment
   PAYMENT_COMPLETED
+  PAYMENT_FAILED
+
+  // Fulfillment
+  FULFILLMENT_CREATED
+  FULFILLMENT_SHIPPED
+  FULFILLMENT_DELIVERED
+
+  // Inventory
+  INVENTORY_STOCKED_IN
+  INVENTORY_ADJUSTED
+  INVENTORY_RESERVED
+  INVENTORY_RELEASED
+  INVENTORY_COMMITTED
 }
 
 enum OutboxEventStatus {
@@ -203,81 +225,100 @@ enum OutboxEventStatus {
   FAILED
 }
 
-model OutboxEvent {
+enum MarketSignalType {
+  PRODUCT_DEMAND
+  CATEGORY_DEMAND
+  GEOGRAPHIC_DEMAND
+  SUPPLY_DEMAND_OPPORTUNITY
+}
+
+enum MarketSignalEntityType {
+  PRODUCT
+  CATEGORY
+  LOCATION
+}
+
+enum MarketIntelligenceType {
+  TREND
+  OPPORTUNITY
+  RISK
+  DEMAND_SPIKE
+  SUPPLY_GAP
+  GEOGRAPHIC_SHIFT
+  CATEGORY_GROWTH
+  MARKET_STRENGTH
+}
+
+enum MarketIntelligenceSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MarketIntelligenceEntityType {
+  PRODUCT
+  CATEGORY
+  LOCATION
+}
+
+model MarketIntelligence {
   id String @id @default(cuid())
 
-  eventType String
-  aggregateType String
-  aggregateId String
+  intelligenceType MarketIntelligenceType
+  entityType       MarketIntelligenceEntityType
+  entityId         String
 
-  payload Json
+  severity MarketIntelligenceSeverity
 
-  status OutboxEventStatus @default(PENDING)
+  confidence Decimal?
 
-  attempts Int @default(0)
-  availableAt DateTime @default(now())
-  processedAt DateTime?
-  lastError String?
+  title   String
+  summary String
+
+  metrics  Json
+  evidence Json?
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  aiInterpretation MarketIntelligenceInterpretation?
+
+  @@index([intelligenceType, entityType, entityId])
+  @@index([severity, createdAt])
+  @@index([windowStart, windowEnd])
+  @@index([entityId])
+}
+
+model MarketIntelligenceInterpretation {
+  id String @id @default(cuid())
+
+  intelligenceId String @unique
+
+  model String
+  promptVersion String
+
+  headline String
+  explanation String
+  marketImplication String
+  recommendedAction String
+  riskNote String
+  confidenceExplanation String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([status, availableAt])
-  @@index([eventType, createdAt])
-  @@index([aggregateType, aggregateId])
-}
+  intelligence MarketIntelligence @relation(
+    fields: [intelligenceId],
+    references: [id],
+    onDelete: Cascade
+  )
 
-model MarketActivity {
-  id String @id @default(cuid())
-
-  activityType MarketActivityType
-
-  userId String?
-
-  productId String?
-  variantId String?
-  sellerId String?
-  categoryId String?
-  brandId String?
-  collectionId String?
-
-  countryId String?
-  stateId String?
-  lgaId String?
-  cityId String?
-
-  quantity Int?
-
-  metadata Json?
-
-  createdAt DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-  seller SellerProfile? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  brand Brand? @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-
-  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  state State? @relation(fields: [stateId], references: [id], onDelete: SetNull)
-  lga Lga? @relation(fields: [lgaId], references: [id], onDelete: SetNull)
-  city City? @relation(fields: [cityId], references: [id], onDelete: SetNull)
-
-  @@index([activityType, createdAt])
-  @@index([userId, createdAt])
-  @@index([productId, activityType, createdAt])
-  @@index([variantId, activityType, createdAt])
-  @@index([sellerId, activityType, createdAt])
-  @@index([categoryId, activityType, createdAt])
-  @@index([countryId, activityType, createdAt])
-  @@index([stateId, activityType, createdAt])
-  @@index([lgaId, activityType, createdAt])
-  @@index([cityId, activityType, createdAt])
   @@index([createdAt])
 }
+
 
 // ============================================================
 // USER & AUTHENTICATION
@@ -310,7 +351,8 @@ model User {
   sourcingResponses SourcingResponse[]
   sourcingMessages  SourcingMessage[]
   reviewResponses   ReviewResponse[]
-  marketActivities  MarketActivity[]
+
+  marketActivities MarketActivity[]
 
   @@index([role])
   @@index([status])
@@ -349,7 +391,9 @@ model Country {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+
   marketActivities MarketActivity[]
+  marketSignals    MarketSignal[]
 }
 
 model State {
@@ -371,7 +415,9 @@ model State {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+
   marketActivities MarketActivity[]
+  marketSignals    MarketSignal[]
 
   @@unique([countryId, code])
   @@unique([countryId, name])
@@ -396,7 +442,9 @@ model Lga {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+
   marketActivities MarketActivity[]
+  marketSignals    MarketSignal[]
 
   @@unique([stateId, name])
   @@index([stateId])
@@ -417,7 +465,9 @@ model City {
   warehouses       Warehouse[]
   orders           Order[]
   sourcingRequests SourcingRequest[]
+
   marketActivities MarketActivity[]
+  marketSignals    MarketSignal[]
 
   @@unique([lgaId, name])
   @@index([lgaId])
@@ -498,10 +548,8 @@ model SellerProfile {
 
   sourcingResponses SourcingResponse[]
   tradeCapabilities SellerTradeCapability[]
+  media             Media[]
   marketActivities  MarketActivity[]
-
-  // NEW: unified media back-relation
-  media Media[]
 
   @@index([stateId])
   @@index([lgaId])
@@ -567,13 +615,10 @@ model Category {
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
 
-  products Product[]
-
+  products         Product[]
   sourcingRequests SourcingRequest[]
+  media            Media[]
   marketActivities MarketActivity[]
-
-  // NEW: unified media back-relation
-  media Media[]
 
   @@index([parentId])
   @@index([isActive])
@@ -590,11 +635,9 @@ model Brand {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products Product[]
+  products         Product[]
+  media            Media[]
   marketActivities MarketActivity[]
-
-  // NEW: unified media back-relation
-  media Media[]
 }
 
 model Collection {
@@ -607,12 +650,10 @@ model Collection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  products         Product[]
+  media            Media[]
   marketActivities MarketActivity[]
-
-  products Product[]
-
-  // NEW: unified media back-relation
-  media Media[]
 }
 
 model Product {
@@ -649,10 +690,8 @@ model Product {
   wishlists Wishlist[]
 
   sourcingResponses SourcingResponse[]
+  media             Media[]
   marketActivities  MarketActivity[]
-
-  // NEW: unified media back-relation
-  media Media[]
 
   @@unique([sellerId, slug])
   @@index([sellerId])
@@ -707,10 +746,8 @@ model ProductVariant {
   wishlistReferences Wishlist[]
 
   sourcingResponses SourcingResponse[]
+  media             Media[]
   marketActivities  MarketActivity[]
-
-  // NEW: unified media back-relation (replaces VariantMedia[])
-  media Media[]
 
   @@unique([sellerId, sku])
   @@index([productId])
@@ -719,7 +756,7 @@ model ProductVariant {
 }
 
 // ============================================================
-// MEDIA (unified, replaces VariantMedia and ReviewImage)
+// MEDIA (unified)
 // ============================================================
 
 model Media {
@@ -920,8 +957,6 @@ model SourcingRequest {
   messages  SourcingMessage[]
 
   order Order?
-
-  // NEW: unified media back-relation
   media Media[]
 
   @@index([buyerId])
@@ -1316,9 +1351,7 @@ model Review {
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
-  // NEW: unified media back-relation (replaces images ReviewImage[])
-  media Media[]
-
+  media    Media[]
   response ReviewResponse?
 
   @@index([userId])
@@ -1443,4 +1476,129 @@ model BusinessConfig {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// MARKET ACTIVITY (raw behavior events)
+// ============================================================
+
+model MarketActivity {
+  id String @id @default(cuid())
+
+  activityType MarketActivityType
+
+  userId String?
+
+  productId    String?
+  variantId    String?
+  sellerId     String?
+  categoryId   String?
+  brandId      String?
+  collectionId String?
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  quantity Int?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  product    Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant    ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  seller     SellerProfile?  @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  category   Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand      Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  collection Collection?     @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  state   State?   @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  lga     Lga?     @relation(fields: [lgaId], references: [id], onDelete: SetNull)
+  city    City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
+  @@index([activityType, createdAt])
+  @@index([userId, createdAt])
+  @@index([productId, activityType, createdAt])
+  @@index([variantId, activityType, createdAt])
+  @@index([sellerId, activityType, createdAt])
+  @@index([categoryId, activityType, createdAt])
+  @@index([countryId, activityType, createdAt])
+  @@index([stateId, activityType, createdAt])
+  @@index([lgaId, activityType, createdAt])
+  @@index([cityId, activityType, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MARKET SIGNALS (aggregated, derived from activity + supply)
+// ============================================================
+
+model MarketSignal {
+  id String @id @default(cuid())
+
+  signalType MarketSignalType
+  entityType MarketSignalEntityType
+  entityId   String
+
+  scopeKey String @default("GLOBAL")
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  metrics Json
+  score   Decimal?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  state   State?   @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  lga     Lga?     @relation(fields: [lgaId], references: [id], onDelete: SetNull)
+  city    City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
+  @@unique([signalType, entityType, entityId, scopeKey, windowStart, windowEnd])
+  @@index([entityId, scopeKey])
+  @@index([windowStart, windowEnd])
+  @@index([countryId, signalType])
+  @@index([stateId, signalType])
+  @@index([lgaId, signalType])
+  @@index([cityId, signalType])
+}
+
+// ============================================================
+// OUTBOX (async event queue, drained by future worker)
+// ============================================================
+
+model OutboxEvent {
+  id String @id @default(cuid())
+
+  eventType     String
+  aggregateType String
+  aggregateId   String
+
+  payload Json
+
+  status OutboxEventStatus @default(PENDING)
+
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now())
+  processedAt DateTime?
+  lastError   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, availableAt])
+  @@index([eventType, createdAt])
+  @@index([aggregateType, aggregateId])
 }

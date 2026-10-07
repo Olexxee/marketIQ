@@ -5,6 +5,8 @@ import {
 } from "../../classes/errorClasses.js";
 import { recordMarketActivity } from "../market-activity/marketActivity.service.js";
 import { reserveInventoryForOrderItem } from "../inventory/inventory.ledger.js";
+import { publishEvent } from "../events/event.publisher.js";
+import { EVENT_TYPES } from "../events/event.types.js";
 import {
   createOrder,
   createOrderItem,
@@ -274,7 +276,7 @@ export const checkoutService = async (userId, payload) => {
         lgaId: delivery.deliveryLgaId,
         cityId: delivery.deliveryCityId,
       },
-      tx
+      tx,
     );
 
     // 4. Group cart items by seller
@@ -295,27 +297,50 @@ export const checkoutService = async (userId, payload) => {
       deliverySnapshot,
       orderSubtotal,
       payload,
-      tx
+      tx,
     );
 
     // 7. Create seller orders + order items (which handles inventory reservation)
     for (const group of sellerGroups) {
       const sellerTotal = sellerTotals.find(
-        (item) => item.sellerId === group.seller.id
+        (item) => item.sellerId === group.seller.id,
       );
 
       const sellerOrder = await createSellerMarketplaceOrder(
         order.id,
         group,
         sellerTotal.subtotal,
-        tx
+        tx,
       );
 
       await createMarketplaceOrderItems(order, sellerOrder, group, tx);
     }
 
-    // 8. Record market activity
-    await recordOrderCreatedActivity(userId, order, sellerGroups, cart.items.length, tx);
+    await recordOrderCreatedActivity(
+      userId,
+      order,
+      sellerGroups,
+      cart.items.length,
+      tx,
+    );
+
+    await publishEvent(
+      {
+        eventType: EVENT_TYPES.ORDER_CREATED,
+        aggregateType: "ORDER",
+        aggregateId: order.id,
+        payload: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          buyerId: userId,
+          total: Number(order.total),
+          currency: "NGN",
+          itemCount: cart.items.length,
+          sellerCount: sellerGroups.length,
+        },
+      },
+      tx,
+    );
 
     // 9. Finalize cart
     await markCartCheckedOut(cart.id, tx);

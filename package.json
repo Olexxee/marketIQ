@@ -24,6 +24,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.4.0",
+    "openai": "^7.30.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^14.0.2",
     "yamljs": "^0.3.0",

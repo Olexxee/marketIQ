@@ -5,40 +5,39 @@ import {
   getBuyerOrder,
   listBuyerOrders,
 } from "./order.controller.js";
-
 import {
   buyerOrderQuerySchema,
   cancelOrderSchema,
   orderIdParamSchema,
 } from "./order.validation.js";
-
 import {
   validateBody,
   validateParams,
   validateQuery,
-} from "../../middlewares/validate.middleware.js";
+} from "../../middlewares/validateMiddleware.js";
+import { authenticate } from "../../middlewares/authenticate.js";
 
-import { authenticate } from "../../middlewares/auth.middleware.js";
 
-const router = Router();
 
-router.use(authenticate);
+const orderRouter = Router();
 
-router.get("/", validateQuery(buyerOrderQuerySchema), listBuyerOrders);
+orderRouter.use(authenticate);
 
-router.get("/:id", validateParams(orderIdParamSchema), getBuyerOrder);
+orderRouter.get("/", validateQuery(buyerOrderQuerySchema), listBuyerOrders);
 
-router.post(
+orderRouter.get("/:id", validateParams(orderIdParamSchema), getBuyerOrder);
+
+orderRouter.post(
   "/:id/cancel",
   validateParams(orderIdParamSchema),
   validateBody(cancelOrderSchema),
   cancelBuyerOrder,
 );
 
-router.post(
+orderRouter.post(
   "/:id/confirm",
   validateParams(orderIdParamSchema),
   confirmBuyerOrder,
 );
 
-export default router;
+export default orderRouter;

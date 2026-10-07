@@ -11,23 +11,23 @@ import {
 import {
   validateBody,
   validateParams,
-} from "../../middlewares/validate.middleware.js";
+} from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 
 
 
-const router = Router();
+const paymentRouter = Router();
 
-router.use(authenticate);
+paymentRouter.use(authenticate);
 
-router.post("/initiate", validateBody(initiatePaymentSchema), initiatePayment);
+paymentRouter.post("/initiate", validateBody(initiatePaymentSchema), initiatePayment);
 
-router.get(
+paymentRouter.get(
   "/verify/:reference",
   validateParams(verifyPaymentParamSchema),
   verifyPayment,
 );
 
-router.get("/order/:orderId", listPaymentsForOrder);
+paymentRouter.get("/order/:orderId", listPaymentsForOrder);
 
-export default router;
+export default paymentRouter;

@@ -1,5 +1,10 @@
 import { ConflictError, NotFoundError } from "../../classes/errorClasses.js";
-import { releaseReservationForOrderItem } from "../inventory/inventory.ledger.js";
+import {
+  releaseReservationForOrderItem,
+  commitSaleForOrderItem,
+} from "../inventory/inventory.ledger.js";
+import { publishEvent } from "../events/event.publisher.js";
+import { EVENT_TYPES } from "../events/event.types.js";
 import {
   countBuyerOrders,
   countSellerOrders,
@@ -101,9 +106,24 @@ export const cancelBuyerOrderService = async (userId, orderId, notes) => {
       });
     }
 
-    await recalculateOrderStatus(orderId, tx);
+       await recalculateOrderStatus(orderId, tx);
 
-    return findBuyerOrderById(orderId, userId, tx);
+       
+       await publishEvent(
+         {
+           eventType: EVENT_TYPES.ORDER_CANCELLED,
+           aggregateType: "ORDER",
+           aggregateId: orderId,
+           payload: {
+             orderId,
+             userId,
+             reason: notes || "Buyer cancelled",
+           },
+         },
+         tx,
+       );
+
+       return findBuyerOrderById(orderId, userId, tx);
   });
 };
 
@@ -198,6 +218,15 @@ export const updateSellerOrderStatusService = async (
         throw new ConflictError(
           "Paid orders cannot be cancelled by the seller. Refund flow required.",
         );
+      }
+      
+      if (nextStatus === "DELIVERED") {
+        const items = await findOrderItems(sellerOrder.orderId, tx);
+        const sellerItems = items.filter((i) => i.sellerOrderId === id);
+
+        for (const item of lockSort(sellerItems)) {
+          await commitSaleForOrderItem(item, tx);
+        }
       }
 
       const items = await findOrderItems(sellerOrder.orderId, tx);
