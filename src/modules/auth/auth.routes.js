@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { rateLimit } from "express-rate-limit";
+import { createRateLimiter } from "../../middlewares/rateLimit.js";
 import {
   registerUser,
   loginUser,
@@ -32,19 +32,17 @@ import { authenticate } from "../../middlewares/authenticate.js";
 
 const authRouter = Router();
 
-const authLimiter = rateLimit({
+const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { success: false, message: "Too many authentication attempts. Try again later." },
+  keyPrefix: "auth",
+  message: "Too many authentication attempts. Try again later.",
 });
-const recoveryLimiter = rateLimit({
+const recoveryLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000,
   limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { success: false, message: "Too many requests. Try again later." },
+  keyPrefix: "auth-recovery",
+  message: "Too many requests. Try again later.",
 });
 
 authRouter.post("/register", authLimiter, validateBody(registerSchema), registerUser);
