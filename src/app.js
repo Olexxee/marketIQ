@@ -50,6 +50,10 @@ import { buildSwaggerDocument } from "../docs/swagger.js";
 
 const app = express();
 
+// The API is deployed behind a single managed reverse proxy; use its client IP
+// for per-IP authentication rate limits rather than treating every request as one IP.
+app.set("trust proxy", 1);
+
 // ============================================================
 // SECURITY + PARSING
 // ============================================================
