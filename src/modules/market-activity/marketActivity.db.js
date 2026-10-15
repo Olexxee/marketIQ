@@ -7,18 +7,42 @@ const dbClient = (tx) => tx || prisma;
 // ============================================================
 
 export const createMarketActivity = async (data, tx) => {
-  return dbClient(tx).marketActivity.create({
-    data,
-  });
+  return dbClient(tx).marketActivity.create({ data });
 };
 
 // ============================================================
-// FIND
+// PUBLIC DISCOVERY TARGETS
+// Return only the catalog references required to classify an event.
 // ============================================================
 
-export const findMarketActivityById = async (id, tx) => {
-  return dbClient(tx).marketActivity.findUnique({
-    where: { id },
+export const findPublicProductActivityTarget = async (productId, tx) => {
+  return dbClient(tx).product.findFirst({
+    where: {
+      id: productId,
+      status: "ACTIVE",
+      seller: { status: "ACTIVE" },
+    },
+    select: {
+      id: true,
+      sellerId: true,
+      categoryId: true,
+      brandId: true,
+      collectionId: true,
+    },
+  });
+};
+
+export const findActiveCategoryActivityTarget = async (categoryId, tx) => {
+  return dbClient(tx).category.findFirst({
+    where: { id: categoryId, isActive: true, type: "PRODUCT" },
+    select: { id: true },
+  });
+};
+
+export const findActiveSellerActivityTarget = async (sellerId, tx) => {
+  return dbClient(tx).sellerProfile.findFirst({
+    where: { id: sellerId, status: "ACTIVE" },
+    select: { id: true },
   });
 };
 
@@ -65,33 +89,21 @@ export const findMarketActivities = async (
 
   if (from || to) {
     where.createdAt = {};
-
-    if (from) {
-      where.createdAt.gte = from;
-    }
-
-    if (to) {
-      where.createdAt.lte = to;
-    }
+    if (from) where.createdAt.gte = from;
+    if (to) where.createdAt.lte = to;
   }
 
   const skip = (page - 1) * limit;
-
   const client = dbClient(tx);
 
   const [items, total] = await Promise.all([
     client.marketActivity.findMany({
       where,
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
     }),
-
-    client.marketActivity.count({
-      where,
-    }),
+    client.marketActivity.count({ where }),
   ]);
 
   return {

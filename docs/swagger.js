@@ -49,6 +49,8 @@ const MODULES = [
   "variant.openapi.yaml",
   "inventory.openapi.yaml",
   "fulfillment.openapi.yaml",
+  "market-activity.openapi.yaml",
+  "wishlist.openapi.yaml",
 ];
 
 // ---------------------------------------------------------------------------

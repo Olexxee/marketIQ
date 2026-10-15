@@ -1,32 +1,38 @@
+import { asyncWrapper } from "../../lib/asyncWrapper.js";
+import { successResponse } from "../../lib/response.js";
 import {
   getMarketActivitiesService,
-  recordMarketActivity,
+  recordPublicMarketActivity,
 } from "./marketActivity.service.js";
 
-export const recordMarketActivityController = async (req, res) => {
-  const activity = await recordMarketActivity({
-    ...req.body,
-    userId: req.user?.id || null,
-  });
+export const recordPublicMarketActivityController = asyncWrapper(async (req, res) => {
+  const activity = await recordPublicMarketActivity(req.validated?.body || req.body);
 
-  return res.status(201).json({
-    success: true,
+  return successResponse({
+    res,
+    statusCode: 201,
     message: "Market activity recorded",
-    data: activity,
+    data: {
+      id: activity.id,
+      activityType: activity.activityType,
+      createdAt: activity.createdAt,
+    },
   });
-};
+});
 
-export const getMarketActivitiesController = async (req, res) => {
-  const result = await getMarketActivitiesService(req.query);
+export const getMarketActivitiesController = asyncWrapper(async (req, res) => {
+  const result = await getMarketActivitiesService(req.validated?.query || req.query);
 
-  return res.status(200).json({
-    success: true,
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Market activity retrieved successfully",
     data: result.items,
-    pagination: {
+    meta: {
       page: result.page,
       limit: result.limit,
       total: result.total,
       totalPages: result.totalPages,
     },
   });
-};
+});
