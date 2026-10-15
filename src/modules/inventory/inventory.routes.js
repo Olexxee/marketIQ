@@ -21,12 +21,13 @@ import {
 } from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireSeller, requireActiveSeller } from "../../middlewares/seller.middleware.js";
+import { requireVerifiedEmail } from "../../middlewares/requireVerifiedEmail.js";
 
 const inventoryRouter = Router();
 
 inventoryRouter.use(authenticate, requireSeller, requireActiveSeller);
 
-inventoryRouter.post("/stock-in", validateBody(stockInSchema), stockIn);
+inventoryRouter.post("/stock-in", requireVerifiedEmail, validateBody(stockInSchema), stockIn);
 
 inventoryRouter.get("/", validateQuery(inventoryQuerySchema), getInventoryList);
 
@@ -34,6 +35,7 @@ inventoryRouter.get("/:id", validateParams(inventoryIdParamSchema), getInventory
 
 inventoryRouter.post(
   "/:id/adjust",
+  requireVerifiedEmail,
   validateParams(inventoryIdParamSchema),
   validateBody(adjustSchema),
   adjustInventory,
@@ -41,6 +43,7 @@ inventoryRouter.post(
 
 inventoryRouter.patch(
   "/:id/reorder-level",
+  requireVerifiedEmail,
   validateParams(inventoryIdParamSchema),
   validateBody(reorderLevelSchema),
   setReorderLevel,
