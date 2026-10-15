@@ -84,3 +84,79 @@ export const revokeAllUserRefreshTokens = async (userId, tx) => {
 export const withTransaction = async (callback) => {
   return prisma.$transaction(callback);
 };
+
+export const updateUser = async (id, data, tx) => {
+  return dbClient(tx).user.update({
+    where: { id },
+    data,
+    include: { sellerProfile: true },
+  });
+};
+
+export const createOAuthAccount = async (data, tx) => {
+  return dbClient(tx).oAuthAccount.create({ data });
+};
+
+export const findOAuthAccount = async (provider, providerSubject, tx) => {
+  return dbClient(tx).oAuthAccount.findUnique({
+    where: { provider_providerSubject: { provider, providerSubject } },
+  });
+};
+
+export const findOAuthAccountByUser = async (userId, provider, tx) => {
+  return dbClient(tx).oAuthAccount.findFirst({ where: { userId, provider } });
+};
+
+export const deleteOAuthAccount = async (id, tx) => {
+  return dbClient(tx).oAuthAccount.delete({ where: { id } });
+};
+
+export const createEmailVerificationToken = async (data, tx) => {
+  return dbClient(tx).emailVerificationToken.create({ data });
+};
+
+export const findEmailVerificationToken = async (tokenHash, tx) => {
+  return dbClient(tx).emailVerificationToken.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+};
+
+export const consumeEmailVerificationToken = async (id, tx) => {
+  return dbClient(tx).emailVerificationToken.updateMany({
+    where: { id, consumedAt: null, expiresAt: { gt: new Date() } },
+    data: { consumedAt: new Date() },
+  });
+};
+
+export const revokeEmailVerificationTokens = async (userId, tx) => {
+  return dbClient(tx).emailVerificationToken.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+};
+
+export const createPasswordResetToken = async (data, tx) => {
+  return dbClient(tx).passwordResetToken.create({ data });
+};
+
+export const findPasswordResetToken = async (tokenHash, tx) => {
+  return dbClient(tx).passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+};
+
+export const consumePasswordResetToken = async (id, tx) => {
+  return dbClient(tx).passwordResetToken.updateMany({
+    where: { id, consumedAt: null, expiresAt: { gt: new Date() } },
+    data: { consumedAt: new Date() },
+  });
+};
+
+export const revokePasswordResetTokens = async (userId, tx) => {
+  return dbClient(tx).passwordResetToken.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+};
