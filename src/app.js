@@ -42,6 +42,7 @@ import {
 
 import inventoryRouter from "./modules/inventory/inventory.routes.js";
 import marketActivityRouter from "./modules/market-activity/marketActivity.routes.js";
+import wishlistRouter from "./modules/wishlist/wishlist.routes.js";
 
 // ============================================================
 // SWAGGER
@@ -149,6 +150,7 @@ app.use("/api/seller/products", productSellerRouter);
 app.use("/api/seller/variants", variantFlatRouter);
 app.use("/api/seller/inventory", inventoryRouter);
 app.use("/api/market-activity", marketActivityRouter);
+app.use("/api/wishlist", wishlistRouter);
 
 // ============================================================
 // ERROR HANDLER (must be last)
