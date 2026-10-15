@@ -41,6 +41,7 @@ import {
 } from "./modules/variants/variant.seller.routes.js";
 
 import inventoryRouter from "./modules/inventory/inventory.routes.js";
+import marketActivityRouter from "./modules/market-activity/marketActivity.routes.js";
 
 // ============================================================
 // SWAGGER
@@ -147,6 +148,7 @@ app.use("/api/seller/products/:productId/variants", variantNestedRouter);
 app.use("/api/seller/products", productSellerRouter);
 app.use("/api/seller/variants", variantFlatRouter);
 app.use("/api/seller/inventory", inventoryRouter);
+app.use("/api/market-activity", marketActivityRouter);
 
 // ============================================================
 // ERROR HANDLER (must be last)
