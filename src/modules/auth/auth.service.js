@@ -161,7 +161,11 @@ export const refresh = async (rawRefreshToken) => {
   assertActiveUser(user);
 
   const result = await withTransaction(async (tx) => {
-    await revokeRefreshToken(storedToken.id, tx);
+    const revocation = await revokeRefreshToken(storedToken.id, tx);
+
+    if (revocation.count !== 1) {
+      throw new UnauthorizedError("Refresh token has already been used");
+    }
 
     const newRefreshToken = signRefreshToken(user.id);
 
