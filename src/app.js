@@ -10,6 +10,8 @@ import swaggerUi from "swagger-ui-express";
 // ============================================================
 
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
+import { enforceTrustedOrigin } from "./middlewares/trustedOrigin.js";
+import { env } from "./config/env.js";
 
 // ============================================================
 // MODULE ROUTERS
@@ -48,6 +50,10 @@ import { buildSwaggerDocument } from "../docs/swagger.js";
 
 const app = express();
 
+// The API is deployed behind a single managed reverse proxy; use its client IP
+// for per-IP authentication rate limits rather than treating every request as one IP.
+app.set("trust proxy", 1);
+
 // ============================================================
 // SECURITY + PARSING
 // ============================================================
@@ -65,10 +71,20 @@ app.use((req, res, next) => {
   return helmet()(req, res, next);
 });
 
+app.use(enforceTrustedOrigin);
+
 app.use(
   cors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin || env.CORS_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    maxAge: 600,
   }),
 );
 
