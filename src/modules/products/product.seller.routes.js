@@ -18,7 +18,7 @@ import {
   validateQuery,
 } from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
-import { requireSeller } from "../../middlewares/seller.middleware.js";
+import { requireSeller, requireActiveSeller } from "../../middlewares/seller.middleware.js";
 import { uploadCatalogMedia } from "../../middlewares/upload.js";
 import { processCatalogMedia } from "../../middlewares/processMedia.js";
 import { parseProductMultipart } from "../../middlewares/parseProductMultipart.js";
@@ -27,7 +27,7 @@ import { MEDIA_FOLDERS } from "../../lib/media.js";
 
 const productSellerRouter = Router();
 
-productSellerRouter.use(authenticate, requireSeller);
+productSellerRouter.use(authenticate, requireSeller, requireActiveSeller);
 
 productSellerRouter.post(
   "/",
