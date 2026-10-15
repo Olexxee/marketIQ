@@ -16,11 +16,10 @@ export const findUserByEmail = async (email, tx) => {
 
 export const findUserById = async (id, tx) => {
   return dbClient(tx).user.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
     include: {
       sellerProfile: true,
+      oauthAccounts: { select: { provider: true } },
     },
   });
 };
@@ -38,6 +37,7 @@ export const createUser = async (data, tx) => {
     data,
     include: {
       sellerProfile: true,
+      oauthAccounts: { select: { provider: true } },
     },
   });
 };
