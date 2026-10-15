@@ -159,6 +159,7 @@ export const listPublicProductsService = async (filters = {}) => {
 
   const [items, total] = await Promise.all([
     findPublicProducts({
+      sellerId: filters.sellerId,
       search: filters.search,
       categoryId: filters.categoryId,
       brandId: filters.brandId,
@@ -167,6 +168,7 @@ export const listPublicProductsService = async (filters = {}) => {
       take,
     }),
     countPublicProducts({
+      sellerId: filters.sellerId,
       search: filters.search,
       categoryId: filters.categoryId,
       brandId: filters.brandId,
