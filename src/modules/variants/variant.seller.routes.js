@@ -14,7 +14,7 @@ import {
 } from "./variant.validation.js";
 import { validateBody, validateParams } from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
-import { requireSeller } from "../../middlewares/seller.middleware.js";
+import { requireSeller, requireActiveSeller } from "../../middlewares/seller.middleware.js";
 import { uploadVariantImages } from "../../middlewares/upload.js";
 import { processMediaList } from "../../middlewares/processMedia.js";
 import { parseVariantMultipart } from "../../middlewares/parseProductMultipart.js";
@@ -26,7 +26,7 @@ import { MEDIA_FOLDERS } from "../../lib/media.js";
 
 export const variantNestedRouter = Router({ mergeParams: true });
 
-variantNestedRouter.use(authenticate, requireSeller);
+variantNestedRouter.use(authenticate, requireSeller, requireActiveSeller);
 
 variantNestedRouter.post(
   "/",
@@ -50,7 +50,7 @@ variantNestedRouter.get(
 
 export const variantFlatRouter = Router();
 
-variantFlatRouter.use(authenticate, requireSeller);
+variantFlatRouter.use(authenticate, requireSeller, requireActiveSeller);
 
 variantFlatRouter.get("/:id", validateParams(variantIdParamSchema), getVariant);
 
