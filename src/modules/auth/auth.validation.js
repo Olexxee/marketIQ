@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const emailSchema = z.string().trim().email("Invalid email address").transform((value) => value.toLowerCase());
 const phoneSchema = z.string().trim().min(7, "Invalid phone number").max(20, "Invalid phone number").optional().nullable();
-const passwordSchema = z.string().min(8, "Password must be at least 8 characters").max(128, "Password is too long");
+const passwordSchema = z.string().min(8, "Password must be at least 8 characters").max(128, "Password is too long")
+  .refine((value) => Buffer.byteLength(value, "utf8") <= 72, "Password must not exceed 72 UTF-8 bytes");
 const tokenSchema = z.string().trim().min(20, "Invalid token").max(512, "Invalid token");
 
 export const registerSchema = z.object({
