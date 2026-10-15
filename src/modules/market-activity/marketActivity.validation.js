@@ -37,7 +37,7 @@ export const recordPublicMarketActivitySchema = z.object({
   productId: cuid.optional(),
   categoryId: cuid.optional(),
   sellerId: cuid.optional(),
-  searchTerm: z.string().trim().min(1).max(120).optional(),
+  searchTerm: z.string().trim().min(1).max(120).transform(value => value.replace(/\\s+/g, " ")).optional(),
 }).strict().superRefine((value, context) => {
   const requiredField = {
     PRODUCT_VIEW: "productId",
