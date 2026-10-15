@@ -1,20 +1,42 @@
 import { Router } from "express";
 import {
   getMarketActivitiesController,
-  recordMarketActivityController,
+  recordPublicMarketActivityController,
 } from "./marketActivity.controller.js";
-import { asyncWrapper } from "../../middlewares/asyncWrapper.js";
-import { authenticate } from "../auth/auth.middleware.js";
-
+import { authenticate } from "../../middlewares/authenticate.js";
+import { authorize } from "../../middlewares/authorize.js";
+import { validateBody, validateQuery } from "../../middlewares/validateMiddleware.js";
+import { createRateLimiter } from "../../middlewares/rateLimit.js";
+import {
+  getMarketActivitiesQuerySchema,
+  recordPublicMarketActivitySchema,
+} from "./marketActivity.validation.js";
 
 const router = Router();
 
-// Internal/authenticated activity recording endpoint.
-// Most production activity should eventually be generated
-// internally by marketplace services.
-router.post("/", authenticate, asyncWrapper(recordMarketActivityController));
+const activityWriteLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  limit: 60,
+  keyPrefix: "market-activity-write",
+  message: "Too many activity events. Try again shortly.",
+});
 
-// Admin/intelligence activity inspection.
-router.get("/", authenticate, asyncWrapper(getMarketActivitiesController));
+// Public discovery events only. The service derives entity relationships
+// from active catalog records and intentionally does not store actor IDs.
+router.post(
+  "/",
+  activityWriteLimiter,
+  validateBody(recordPublicMarketActivitySchema),
+  recordPublicMarketActivityController,
+);
+
+// Raw event inspection is restricted to trusted internal roles.
+router.get(
+  "/",
+  authenticate,
+  authorize("ADMIN", "STAFF"),
+  validateQuery(getMarketActivitiesQuerySchema),
+  getMarketActivitiesController,
+);
 
 export default router;
