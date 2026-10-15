@@ -18,6 +18,7 @@ import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import locationRouter from "./modules/locations/location.routes.js";
 import sellerRouter from "./modules/sellers/seller.routes.js";
+import publicSellerRouter from "./modules/sellers/seller.public.routes.js";
 
 import catalogRouter from "./modules/categories/category.routes.js";
 import brandRouter from "./modules/brands/brand.routes.js";
@@ -101,6 +102,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Identity + geography
 app.use("/api/auth", authRouter);
+app.use("/api/sellers", publicSellerRouter);
 app.use("/api/sellers", sellerRouter);
 app.use("/api/locations", locationRouter);
 
