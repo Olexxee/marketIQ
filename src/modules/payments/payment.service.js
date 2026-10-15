@@ -12,8 +12,8 @@ import {
   commitSaleForOrderItem,
   releaseReservationForOrderItem,
 } from "../inventory/inventory.ledger.js";
-import { publishEvent } from "../../events/event.publisher.js";
-import { EVENT_TYPES } from "../../events/event.types.js";
+import { publishEvent } from "../events/event.publisher.js";
+import { EVENT_TYPES } from "../events/event.types.js";
 import {
   createPayment,
   findBuyerEmail,

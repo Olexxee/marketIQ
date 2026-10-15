@@ -262,6 +262,54 @@ enum MarketIntelligenceEntityType {
   LOCATION
 }
 
+model CommercialActivity {
+  id String @id @default(cuid())
+
+  activityType String
+
+  sourceId        String
+  externalEventId String
+
+  userId String?
+
+  productId    String?
+  variantId    String?
+  sellerId     String?
+  categoryId   String?
+  brandId      String?
+  collectionId String?
+
+  countryId String?
+  stateId   String?
+  lgaId     String?
+  cityId    String?
+
+  quantity Int?
+
+  occurredAt DateTime
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([sourceId, externalEventId])
+
+  @@index([activityType, occurredAt])
+  @@index([userId, occurredAt])
+
+  @@index([productId, activityType, occurredAt])
+  @@index([variantId, activityType, occurredAt])
+  @@index([sellerId, activityType, occurredAt])
+  @@index([categoryId, activityType, occurredAt])
+
+  @@index([countryId, activityType, occurredAt])
+  @@index([stateId, activityType, occurredAt])
+  @@index([lgaId, activityType, occurredAt])
+  @@index([cityId, activityType, occurredAt])
+
+  @@index([occurredAt])
+}
+
 model MarketIntelligence {
   id String @id @default(cuid())
 

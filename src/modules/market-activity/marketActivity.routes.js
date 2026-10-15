@@ -3,14 +3,9 @@ import {
   getMarketActivitiesController,
   recordPublicMarketActivityController,
 } from "./marketActivity.controller.js";
+import { asyncWrapper } from "../../middlewares/asyncWrapper.js";
 import { authenticate } from "../../middlewares/authenticate.js";
-import { authorize } from "../../middlewares/authorize.js";
-import { validateBody, validateQuery } from "../../middlewares/validateMiddleware.js";
-import { createRateLimiter } from "../../middlewares/rateLimit.js";
-import {
-  getMarketActivitiesQuerySchema,
-  recordPublicMarketActivitySchema,
-} from "./marketActivity.validation.js";
+
 
 const router = Router();
 

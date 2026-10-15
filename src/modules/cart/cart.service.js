@@ -3,8 +3,8 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../classes/errorClasses.js";
-import { publishEvent } from "../../events/event.publisher.js";
-import { EVENT_TYPES } from "../../events/event.types.js";
+import { publishEvent } from "../events/event.publisher.js";
+import { EVENT_TYPES } from "../events/event.types.js";
 import {
   createCart,
   createCartItem,

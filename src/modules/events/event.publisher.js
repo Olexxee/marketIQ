@@ -1,4 +1,4 @@
-import { BadRequestError } from "../classes/errorClasses.js";
+import { BadRequestError } from "../../classes/errorClasses.js";
 import { createOutboxEvent } from "./event.db.js";
 
 export const publishEvent = async (
