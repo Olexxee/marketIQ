@@ -4,7 +4,7 @@ import {
   recordMarketActivityController,
 } from "./marketActivity.controller.js";
 import { asyncWrapper } from "../../middlewares/asyncWrapper.js";
-import { authenticate } from "../auth/auth.middleware.js";
+import { authenticate } from "../../middlewares/authenticate.js";
 
 
 const router = Router();
