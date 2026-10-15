@@ -51,5 +51,9 @@ export const env = {
   },
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
+  EMAIL_FROM: process.env.EMAIL_FROM,
+  FRONTEND_URL: process.env.FRONTEND_URL,
   paystack: {},
 };
