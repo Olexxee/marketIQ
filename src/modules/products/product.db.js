@@ -47,6 +47,7 @@ const buildSellerProductWhere = ({
 
   if (status) where.status = status;
 
+  if (sellerId) where.sellerId = sellerId;
   if (categoryId) where.categoryId = categoryId;
   if (brandId) where.brandId = brandId;
   if (collectionId) where.collectionId = collectionId;
@@ -63,6 +64,7 @@ const buildSellerProductWhere = ({
 };
 
 const buildPublicProductWhere = ({
+  sellerId,
   search,
   categoryId,
   brandId,
@@ -172,11 +174,12 @@ export const countSellerProducts = async (
 };
 
 export const findPublicProducts = async (
-  { search, categoryId, brandId, collectionId, skip, take } = {},
+  { sellerId, search, categoryId, brandId, collectionId, skip, take } = {},
   tx,
 ) => {
   return dbClient(tx).product.findMany({
     where: buildPublicProductWhere({
+      sellerId,
       search,
       categoryId,
       brandId,
@@ -190,11 +193,12 @@ export const findPublicProducts = async (
 };
 
 export const countPublicProducts = async (
-  { search, categoryId, brandId, collectionId } = {},
+  { sellerId, search, categoryId, brandId, collectionId } = {},
   tx,
 ) => {
   return dbClient(tx).product.count({
     where: buildPublicProductWhere({
+      sellerId,
       search,
       categoryId,
       brandId,
