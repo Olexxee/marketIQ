@@ -47,7 +47,6 @@ const buildSellerProductWhere = ({
 
   if (status) where.status = status;
 
-  if (sellerId) where.sellerId = sellerId;
   if (categoryId) where.categoryId = categoryId;
   if (brandId) where.brandId = brandId;
   if (collectionId) where.collectionId = collectionId;
@@ -75,6 +74,7 @@ const buildPublicProductWhere = ({
     seller: { status: "ACTIVE" },
   };
 
+  if (sellerId) where.sellerId = sellerId;
   if (categoryId) where.categoryId = categoryId;
   if (brandId) where.brandId = brandId;
   if (collectionId) where.collectionId = collectionId;
