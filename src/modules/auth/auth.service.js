@@ -68,6 +68,10 @@ const sanitizeUser = (user) => {
           status: user.sellerProfile.status,
         }
       : null,
+    authMethods: Array.from(new Set([
+      ...(user.password ? ["password"] : []),
+      ...((user.oauthAccounts || []).map((account) => account.provider)),
+    ])),
   };
 };
 
@@ -314,7 +318,7 @@ export const googleSignIn = async (idToken) => {
       provider: "google",
       providerSubject: identity.subject,
     }, tx);
-    return created;
+    return findUserById(created.id, tx);
   });
   return issueSession(user);
 };
