@@ -9,6 +9,7 @@ export const findUserByEmail = async (email, tx) => {
     },
     include: {
       sellerProfile: true,
+      oauthAccounts: { select: { provider: true } },
     },
   });
 };
@@ -89,7 +90,10 @@ export const updateUser = async (id, data, tx) => {
   return dbClient(tx).user.update({
     where: { id },
     data,
-    include: { sellerProfile: true },
+    include: {
+      sellerProfile: true,
+      oauthAccounts: { select: { provider: true } },
+    },
   });
 };
 
