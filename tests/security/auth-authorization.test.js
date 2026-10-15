@@ -9,10 +9,10 @@ process.env.CORS_ORIGINS = "https://storefront.example.test,http://localhost:517
 
 const [{ enforceTrustedOrigin }, { requireActiveSeller }, { authorize }, { requireVerifiedEmail }] =
   await Promise.all([
-    import("../src/middlewares/trustedOrigin.js"),
-    import("../src/middlewares/seller.middleware.js"),
-    import("../src/middlewares/authorize.js"),
-    import("../src/middlewares/requireVerifiedEmail.js"),
+    import("../../src/middlewares/trustedOrigin.js"),
+    import("../../src/middlewares/seller.middleware.js"),
+    import("../../src/middlewares/authorize.js"),
+    import("../../src/middlewares/requireVerifiedEmail.js"),
   ]);
 
 const invoke = (middleware, req) => {
