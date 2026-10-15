@@ -20,11 +20,11 @@ import {
   validateQuery,
 } from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
-import { requireSeller } from "../../middlewares/seller.middleware.js";
+import { requireSeller, requireActiveSeller } from "../../middlewares/seller.middleware.js";
 
 const inventoryRouter = Router();
 
-inventoryRouter.use(authenticate, requireSeller);
+inventoryRouter.use(authenticate, requireSeller, requireActiveSeller);
 
 inventoryRouter.post("/stock-in", validateBody(stockInSchema), stockIn);
 
