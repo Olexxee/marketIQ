@@ -20,10 +20,7 @@ const WISHLIST_INCLUDE = {
 
 export const listWishlistByUser = async (userId, tx) =>
   dbClient(tx).wishlist.findMany({
-    where: {
-      userId,
-      product: { status: "ACTIVE", seller: { status: "ACTIVE" } },
-    },
+    where: { userId },
     include: WISHLIST_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
