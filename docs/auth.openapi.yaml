@@ -26,7 +26,7 @@ paths:
       tags: [Auth]
       summary: Register a new user
       description: |
-        Creates a new user account with role `USER` and status `ACTIVE`.
+        Creates a new user account with role `USER` and status `ACTIVE`. An email verification message is sent and `emailVerifiedAt` remains null until the single-use link is redeemed.
         On success, an access token is returned in the JSON body and a
         refresh-token cookie is set on the response.
       requestBody:
@@ -231,6 +231,163 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+
+  /api/auth/google:
+    post:
+      tags: [Auth]
+      summary: Sign in or register with Google
+      description: Verifies the Google ID token on the server. Existing accounts are never linked based on email alone.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken: { type: string }
+      responses:
+        '200': { description: Google sign-in successful }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify an email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200': { description: Email verified }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/auth/resend-verification:
+    post:
+      tags: [Auth]
+      summary: Resend email verification
+      description: Always returns a generic message to avoid account enumeration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { description: Generic verification email response }
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset
+      description: Always returns a generic message to avoid account enumeration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { description: Generic password recovery response }
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using a single-use token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8, maxLength: 128, format: password }
+      responses:
+        '200': { description: Password reset and sessions revoked }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password for the authenticated user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, format: password }
+                newPassword: { type: string, minLength: 8, maxLength: 128, format: password }
+      responses:
+        '200': { description: Password changed and refresh sessions revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/auth/profile:
+    patch:
+      tags: [Auth]
+      summary: Update the authenticated user's profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string, minLength: 2, maxLength: 100 }
+                phone: { type: string, nullable: true, minLength: 7, maxLength: 20 }
+      responses:
+        '200': { description: Profile updated }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/auth/google/link:
+    post:
+      tags: [Auth]
+      summary: Link Google to the authenticated account
+      description: Requires a Google ID token whose verified email exactly matches the signed-in account email.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken: { type: string }
+      responses:
+        '200': { description: Google identity linked }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Auth]
+      summary: Unlink Google from the authenticated account
+      description: Requires a local password to remain configured.
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Google identity unlinked }
+        '403': { description: A local password is required before unlinking }
 
 components:
   securitySchemes:
@@ -438,16 +595,23 @@ components:
           example: "+2348012345678"
         role:
           type: string
-          enum: [USER, SELLER, ADMIN]
+          enum: [USER, STAFF, ADMIN]
           example: "USER"
         status:
           type: string
           enum: [ACTIVE, SUSPENDED]
           example: "ACTIVE"
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
         sellerProfile:
           nullable: true
-          allOf:
-            - $ref: '#/components/schemas/SellerProfile'
+          type: object
+          properties:
+            id: { type: string }
+            businessName: { type: string }
+            status: { type: string, enum: [PENDING, ACTIVE, SUSPENDED, CLOSED] }
         createdAt:
           type: string
           format: date-time
