@@ -44,11 +44,16 @@ const verifyClaimsAndSignature = (parts, jwk, claims) => {
 
   const now = Math.floor(Date.now() / 1000);
   const issuerValid = ["accounts.google.com", "https://accounts.google.com"].includes(claims.iss);
+  const audienceIsArray = Array.isArray(claims.aud);
   const audienceValid = claims.aud === env.GOOGLE_CLIENT_ID ||
-    (Array.isArray(claims.aud) && claims.aud.includes(env.GOOGLE_CLIENT_ID));
+    (audienceIsArray && claims.aud.includes(env.GOOGLE_CLIENT_ID));
+  const authorizedPartyValid = !audienceIsArray ||
+    claims.aud.length <= 1 ||
+    claims.azp === env.GOOGLE_CLIENT_ID;
   if (
     !issuerValid ||
     !audienceValid ||
+    !authorizedPartyValid ||
     !claims.sub ||
     !claims.email ||
     claims.email_verified !== true ||
