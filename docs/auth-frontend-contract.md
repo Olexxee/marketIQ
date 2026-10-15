@@ -33,7 +33,7 @@ Base path: `/api/auth`. JSON responses use `{ success, message, data }`. Access 
 
 ## User fields
 
-`id`, `fullName`, `email`, `phone`, `role` (`USER | STAFF | ADMIN`), `status`, `emailVerifiedAt` (nullable), `createdAt`, `updatedAt`, and nullable limited `sellerProfile: { id, businessName, status }`. Passwords, OAuth subjects, token hashes and refresh tokens are never returned.
+`id`, `fullName`, `email`, `phone`, `role` (`USER | STAFF | ADMIN`), `status`, `emailVerifiedAt` (nullable), `createdAt`, `updatedAt`, and nullable limited `sellerProfile: { id, businessName, status }`, plus `authMethods: ['password', 'google']` containing only configured sign-in method names. Passwords, OAuth subjects, token hashes and refresh tokens are never returned.
 
 ## Environment required for production
 
