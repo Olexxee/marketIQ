@@ -310,11 +310,7 @@ model MarketIntelligenceInterpretation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  intelligence MarketIntelligence @relation(
-    fields: [intelligenceId],
-    references: [id],
-    onDelete: Cascade
-  )
+  intelligence MarketIntelligence @relation(fields: [intelligenceId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
 }
