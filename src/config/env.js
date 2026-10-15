@@ -24,6 +24,25 @@ if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
   );
 }
 
+if (
+  process.env.NODE_ENV === "production" &&
+  (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM || !process.env.FRONTEND_URL)
+) {
+  throw new Error(
+    "RESEND_API_KEY, EMAIL_FROM, and FRONTEND_URL are required in production for account verification and recovery",
+  );
+}
+
+if (process.env.FRONTEND_URL) {
+  const frontendUrl = new URL(process.env.FRONTEND_URL);
+  if (frontendUrl.pathname !== "/" || frontendUrl.search || frontendUrl.hash) {
+    throw new Error("FRONTEND_URL must be an origin without a path, query, or hash");
+  }
+  if (process.env.NODE_ENV === "production" && frontendUrl.protocol !== "https:") {
+    throw new Error("FRONTEND_URL must use HTTPS in production");
+  }
+}
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
 
