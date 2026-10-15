@@ -605,6 +605,12 @@ components:
           type: string
           format: date-time
           nullable: true
+        authMethods:
+          type: array
+          items:
+            type: string
+            enum: [password, google]
+          example: [password]
         sellerProfile:
           nullable: true
           type: object
