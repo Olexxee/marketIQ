@@ -18,7 +18,8 @@ import {
   validateQuery,
 } from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
-import { requireSeller } from "../../middlewares/seller.middleware.js";
+import { requireSeller, requireActiveSeller } from "../../middlewares/seller.middleware.js";
+import { requireVerifiedEmail } from "../../middlewares/requireVerifiedEmail.js";
 import { uploadCatalogMedia } from "../../middlewares/upload.js";
 import { processCatalogMedia } from "../../middlewares/processMedia.js";
 import { parseProductMultipart } from "../../middlewares/parseProductMultipart.js";
@@ -27,10 +28,11 @@ import { MEDIA_FOLDERS } from "../../lib/media.js";
 
 const productSellerRouter = Router();
 
-productSellerRouter.use(authenticate, requireSeller);
+productSellerRouter.use(authenticate, requireSeller, requireActiveSeller);
 
 productSellerRouter.post(
   "/",
+  requireVerifiedEmail,
   uploadCatalogMedia,
   processCatalogMedia(MEDIA_FOLDERS.PRODUCT),
   parseProductMultipart,
@@ -44,6 +46,7 @@ productSellerRouter.get("/:id", validateParams(productIdParamSchema), getSellerP
 
 productSellerRouter.patch(
   "/:id",
+  requireVerifiedEmail,
   uploadCatalogMedia,
   processCatalogMedia(MEDIA_FOLDERS.PRODUCT),
   parseProductMultipart,
@@ -52,6 +55,6 @@ productSellerRouter.patch(
   updateProduct,
 );
 
-productSellerRouter.delete("/:id", validateParams(productIdParamSchema), archiveProduct);
+productSellerRouter.delete("/:id", requireVerifiedEmail, validateParams(productIdParamSchema), archiveProduct);
 
 export default productSellerRouter;

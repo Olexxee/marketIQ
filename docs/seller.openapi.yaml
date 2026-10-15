@@ -2,10 +2,9 @@ openapi: 3.0.3
 info:
   title: MarketIQ API - Seller Module
   description: |
-    Seller onboarding, profile management, and business locations.
+    Public seller discovery and storefront reads, seller onboarding, profile management, and business locations.
 
-    All endpoints require a valid Bearer access token. Endpoints marked
-    with **seller** additionally require an onboarded `SellerProfile`.
+    Public directory/storefront endpoints do not require authentication. Seller management endpoints require a valid Bearer access token; endpoints marked with **seller** additionally require an onboarded `SellerProfile`.
   version: 1.0.0
 servers:
   - url: http://localhost:3000
@@ -16,6 +15,69 @@ tags:
     description: Seller profile and business locations.
 
 paths:
+  /api/sellers/directory:
+    get:
+      tags: [Seller]
+      summary: Browse active seller storefronts
+      description: Public seller discovery with optional business-name search and trade-capability filter. Only active seller profiles are returned.
+      security: []
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 150 }
+        - in: query
+          name: tradeCapability
+          schema:
+            type: string
+            enum: [RETAIL, WHOLESALE, IMPORTER, EXPORTER, MANUFACTURER, DISTRIBUTOR]
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Paginated public seller directory.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { type: object }
+                  meta: { type: object }
+        '422': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/sellers/{id}/storefront:
+    get:
+      tags: [Seller]
+      summary: Get a public seller storefront profile
+      description: Returns public business details, trade capabilities, primary location summary, and active-product count. Product listings are retrieved through GET /api/products?sellerId={id}.
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Seller profile ID
+          schema: { type: string }
+      responses:
+        '200':
+          description: Public seller storefront.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: object }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /api/sellers/onboard:
     post:
       tags: [Seller]

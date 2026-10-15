@@ -17,6 +17,10 @@ paths:
       parameters:
         - $ref: "#/components/parameters/SearchParam"
         - in: query
+          name: sellerId
+          description: Filter public products to a seller storefront
+          schema: { type: string }
+        - in: query
           name: categoryId
           schema: { type: string }
         - in: query

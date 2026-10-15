@@ -9,6 +9,7 @@ import {
   sellerLocationIdParamSchema,
 } from "./seller.validation.js";
 import { requireSeller } from "../../middlewares/seller.middleware.js";
+import { requireVerifiedEmail } from "../../middlewares/requireVerifiedEmail.js";
 import {
   onboard,
   getMe,
@@ -26,6 +27,7 @@ const sellerRouter = Router();
 sellerRouter.post(
   "/onboard",
   authenticate,
+  requireVerifiedEmail,
   validateBody(onboardSellerSchema),
   onboard,
 );
@@ -35,6 +37,7 @@ sellerRouter.get("/me", authenticate, requireSeller, getMe);
 sellerRouter.patch(
   "/me",
   authenticate,
+  requireVerifiedEmail,
   requireSeller,
   validateBody(updateSellerSchema),
   updateMe,
@@ -43,6 +46,7 @@ sellerRouter.patch(
 sellerRouter.post(
   "/locations",
   authenticate,
+  requireVerifiedEmail,
   requireSeller,
   validateBody(createBusinessLocationSchema),
   createLocation,
@@ -61,6 +65,7 @@ sellerRouter.get(
 sellerRouter.patch(
   "/locations/:id",
   authenticate,
+  requireVerifiedEmail,
   requireSeller,
   validateParams(sellerLocationIdParamSchema),
   validateBody(updateBusinessLocationSchema),
@@ -70,6 +75,7 @@ sellerRouter.patch(
 sellerRouter.delete(
   "/locations/:id",
   authenticate,
+  requireVerifiedEmail,
   requireSeller,
   validateParams(sellerLocationIdParamSchema),
   deleteLocation,

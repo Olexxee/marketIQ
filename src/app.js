@@ -10,6 +10,8 @@ import swaggerUi from "swagger-ui-express";
 // ============================================================
 
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
+import { enforceTrustedOrigin } from "./middlewares/trustedOrigin.js";
+import { env } from "./config/env.js";
 
 // ============================================================
 // MODULE ROUTERS
@@ -18,6 +20,7 @@ import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import locationRouter from "./modules/locations/location.routes.js";
 import sellerRouter from "./modules/sellers/seller.routes.js";
+import publicSellerRouter from "./modules/sellers/seller.public.routes.js";
 
 import catalogRouter from "./modules/categories/category.routes.js";
 import brandRouter from "./modules/brands/brand.routes.js";
@@ -47,6 +50,10 @@ import { buildSwaggerDocument } from "../docs/swagger.js";
 
 const app = express();
 
+// The API is deployed behind a single managed reverse proxy; use its client IP
+// for per-IP authentication rate limits rather than treating every request as one IP.
+app.set("trust proxy", 1);
+
 // ============================================================
 // SECURITY + PARSING
 // ============================================================
@@ -64,10 +71,20 @@ app.use((req, res, next) => {
   return helmet()(req, res, next);
 });
 
+app.use(enforceTrustedOrigin);
+
 app.use(
   cors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin || env.CORS_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    maxAge: 600,
   }),
 );
 
@@ -101,6 +118,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Identity + geography
 app.use("/api/auth", authRouter);
+app.use("/api/sellers", publicSellerRouter);
 app.use("/api/sellers", sellerRouter);
 app.use("/api/locations", locationRouter);
 

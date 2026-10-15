@@ -16,6 +16,7 @@ export const productQuerySchema = z.object({
 });
 
 export const publicProductQuerySchema = z.object({
+  sellerId: cuid.optional(),
   search: z.string().trim().min(1).optional(),
   categoryId: cuid.optional(),
   brandId: cuid.optional(),
