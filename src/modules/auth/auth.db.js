@@ -55,10 +55,13 @@ export const findRefreshTokenByHash = async (tokenHash, tx) => {
   });
 };
 
+// Conditional revocation makes refresh-token rotation single-use under concurrent
+// requests. Callers must check count === 1 before issuing a replacement token.
 export const revokeRefreshToken = async (id, tx) => {
-  return dbClient(tx).refreshToken.update({
+  return dbClient(tx).refreshToken.updateMany({
     where: {
       id,
+      revokedAt: null,
     },
     data: {
       revokedAt: new Date(),
