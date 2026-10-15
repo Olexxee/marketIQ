@@ -51,8 +51,24 @@ const RESET_MINUTES = 20;
 
 const sanitizeUser = (user) => {
   if (!user) return null;
-  const { password, ...safeUser } = user;
-  return safeUser;
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone ?? null,
+    role: user.role,
+    status: user.status,
+    emailVerifiedAt: user.emailVerifiedAt ?? null,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    sellerProfile: user.sellerProfile
+      ? {
+          id: user.sellerProfile.id,
+          businessName: user.sellerProfile.businessName,
+          status: user.sellerProfile.status,
+        }
+      : null,
+  };
 };
 
 const assertActiveUser = (user) => {
@@ -194,7 +210,7 @@ export const verifyEmail = async (rawToken) => {
   await withTransaction(async (tx) => {
     const consumed = await consumeEmailVerificationToken(record.id, tx);
     if (consumed.count !== 1) throw new BadRequestError("Verification link is invalid or expired");
-    await updateUser(record.userId || record.user.id, { emailVerifiedAt: new Date() }, tx);
+    await updateUser(record.user.id, { emailVerifiedAt: new Date() }, tx);
     await revokeEmailVerificationTokens(record.user.id, tx);
   });
   return { email: record.user.email, emailVerifiedAt: new Date() };
@@ -316,6 +332,7 @@ export const linkGoogleAccount = async (userId, idToken) => {
   }
   if (existing) return { linked: true };
   await createOAuthAccount({ userId, provider: "google", providerSubject: identity.subject });
+  if (!user.emailVerifiedAt) await updateUser(userId, { emailVerifiedAt: new Date() });
   return { linked: true };
 };
 
