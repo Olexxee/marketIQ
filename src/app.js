@@ -29,6 +29,7 @@ import cartRouter from "./modules/cart/cart.routes.js";
 import orderRouter from "./modules/orders/order.routes.js";
 import checkoutRouter from "./modules/checkout/checkout.routes.js";
 import paymentRouter from "./modules/payments/payment.routes.js";
+import adminOperationsRouter from "./modules/admin-operations/admin-operations.routes.js";
 import { paystackWebhook } from "./modules/payments/payment.webhook.js";
 
 import productRouter from "./modules/products/product.routes.js";
@@ -137,6 +138,7 @@ app.use("/api/cart", cartRouter);
 app.use("/api/order", orderRouter)
 app.use("/api/checkout", checkoutRouter)
 app.use("/api/checkout", paymentRouter)
+app.use("/api/admin/operations", adminOperationsRouter);
 
 // ------------------------------------------------------------
 // Public catalog
