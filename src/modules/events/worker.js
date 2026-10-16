@@ -1,6 +1,7 @@
 import { registerEventListeners } from "./registerListeners.js";
 import { processOutboxEvents } from "./event.worker.js";
 import { processAutoCompletion } from "../orders/order.auto-completion.js";
+import { processExpiredUnpaidOrders } from "../orders/order.payment-expiry.js";
 
 registerEventListeners();
 
@@ -17,6 +18,7 @@ const run = async () => {
 
   try {
     await processAutoCompletion();
+    await processExpiredUnpaidOrders();
     await processOutboxEvents();
   } catch (error) {
     console.error("[EVENT WORKER] Processing failed:", error);
