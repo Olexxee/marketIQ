@@ -215,3 +215,10 @@ export const updateOrderStatus = async (id, status, tx) => {
 export const withTransaction = async (callback) => {
   return prisma.$transaction(callback, { timeout: 15000 });
 };
+
+export const completeDeliveredSellerOrders = async (orderId, tx) => {
+  return dbClient(tx).sellerOrder.updateMany({
+    where: { orderId, status: "DELIVERED" },
+    data: { status: "COMPLETED" },
+  });
+};
