@@ -2,6 +2,12 @@ import prisma from "../../config/prisma.js";
 
 const dbClient = (tx) => tx || prisma;
 
+export const findActiveProductForReviews = (productId) =>
+  dbClient().product.findFirst({
+    where: { id: productId, status: "ACTIVE", seller: { status: "ACTIVE" } },
+    select: { id: true },
+  });
+
 export const findActiveReviewProduct = (productId, variantId, tx) =>
   dbClient(tx).product.findFirst({
     where: {
