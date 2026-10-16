@@ -207,24 +207,36 @@ export const disputeBuyerOrderService = async (userId, orderId, notes) => {
       throw new ConflictError("This order is already disputed");
     }
 
+    const disputedAt = new Date();
     const disputed = await tx.order.updateMany({
-      where: {
-        id: orderId,
-        status: "DELIVERED",
-        disputedAt: null,
-      },
-      data: {
-        disputedAt: new Date(),
-        disputeNotes: notes,
-        completionDueAt: null,
-      },
+      where: { id: orderId, status: "DELIVERED", disputedAt: null },
+      data: { disputedAt, disputeNotes: notes, completionDueAt: null },
     });
 
     if (disputed.count !== 1) {
-      throw new ConflictError(
-        "Order state changed before the dispute could be recorded",
-      );
+      throw new ConflictError("Order state changed before the dispute could be recorded");
     }
+
+    const dispute = await tx.dispute.create({
+      data: { orderId, openedById: userId, reason: notes, status: "OPEN" },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId,
+        action: "ORDER_DISPUTED",
+        resource: "Dispute",
+        resourceId: dispute.id,
+        metadata: { orderId, status: "OPEN" },
+      },
+    });
+
+    await publishEvent({
+      eventType: EVENT_TYPES.DISPUTE_OPENED,
+      aggregateType: "DISPUTE",
+      aggregateId: dispute.id,
+      payload: { disputeId: dispute.id, orderId, openedById: userId },
+    }, tx);
 
     return findBuyerOrderById(orderId, userId, tx);
   });
