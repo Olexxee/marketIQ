@@ -23,6 +23,7 @@ import {
   createRefundRecord,
   findRefundById,
   findRefundByProviderReference,
+  findProcessingRefundsForPayment,
   getRefundExposureForPayment,
   listRefunds,
   updateRefund,
@@ -734,10 +735,7 @@ const findRefundForWebhook = async (providerReference, event) => {
   if (!transactionReference) return null;
   const payment = await findPaymentByReference(transactionReference);
   if (!payment) return null;
-  const candidates = await (await import("../../config/prisma.js")).default.refund.findMany({
-    where: { paymentId: payment.id, status: "PROCESSING" },
-    orderBy: { createdAt: "asc" },
-  });
+  const candidates = await findProcessingRefundsForPayment(payment.id);
   const amountKobo = Number(event?.data?.amount);
   const matches = candidates.filter((candidate) =>
     Number.isFinite(amountKobo) && Math.round(Number(candidate.amount) * 100) === amountKobo,
