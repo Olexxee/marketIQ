@@ -33,7 +33,7 @@ test("create review validates rating, variant, and written feedback", () => {
     variantId: cuidValue, rating: 3, comment: "short",
   }).success, false);
   assert.equal(createReviewBodySchema.safeParse({
-    variantId: cuidValue, rating: 4, comment: "A good product, extra: true",
+    variantId: cuidValue, rating: 4, comment: "A good product, extra field is invalid", extra: true,
   }).success, false);
 });
 
