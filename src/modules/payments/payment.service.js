@@ -6,6 +6,7 @@ import {
 } from "../../classes/errorClasses.js";
 import {
   initializeTransaction,
+  initiateRefund,
   verifyTransaction,
 } from "../../config/paystack.js";
 import {
@@ -14,10 +15,16 @@ import {
 } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
-import { recordPaymentCaptureLedger } from "./payment.ledger.js";
+import { recordPaymentCaptureLedger, recordRefundLedger } from "./payment.ledger.js";
 import {
   createPayment,
   createRefundRecord,
+  findRefundById,
+  findRefundByProviderReference,
+  getRefundExposureForPayment,
+  listRefunds,
+  updateRefund,
+  updateRefundStatusIfProcessing,
   claimOrderPaymentSuccess,
   hasPendingPaymentForOrder,
   updatePaymentStatusIfPending,
@@ -398,4 +405,284 @@ const markPaymentFailed = async (paymentId) => {
     if (!payment || payment.status === "SUCCESS") return;
     await updatePayment(paymentId, { status: "FAILED" }, tx);
   });
+};
+
+
+// ============================================================
+// REFUNDS (admin-controlled; provider calls never run inside DB transactions)
+// ============================================================
+
+export const requestRefundService = async (actorId, {
+  orderId,
+  paymentId,
+  amount,
+  reason,
+  idempotencyKey,
+}) => {
+  return withTransaction(async (tx) => {
+    const existing = await tx.refund.findUnique({ where: { idempotencyKey } });
+    if (existing) return existing;
+
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundError("Order not found");
+
+    const payment = paymentId
+      ? await tx.payment.findFirst({ where: { id: paymentId, orderId, status: "SUCCESS" } })
+      : await tx.payment.findFirst({
+          where: { orderId, status: "SUCCESS" },
+          orderBy: { createdAt: "desc" },
+        });
+    if (!payment) throw new ConflictError("No successful payment is available to refund");
+
+    const exposure = await getRefundExposureForPayment(payment.id, tx);
+    const reserved = Number(exposure._sum.amount ?? 0);
+    const available = Math.max(0, Number(payment.amount) - reserved);
+    const refundAmount = amount === undefined || amount === null ? available : Number(amount);
+
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+      throw new BadRequestError("Refund amount must be greater than zero");
+    }
+    if (refundAmount > available + 0.000001) {
+      throw new ConflictError("Refund amount exceeds the remaining refundable balance");
+    }
+
+    const refund = await createRefundRecord({
+      orderId,
+      paymentId: payment.id,
+      requestedById: actorId,
+      amount: refundAmount,
+      currency: payment.currency,
+      reason,
+      status: "REQUESTED",
+      idempotencyKey,
+    }, tx);
+
+    await tx.auditLog.create({
+      data: {
+        userId: actorId,
+        action: "REFUND_REQUESTED",
+        resource: "Refund",
+        resourceId: refund.id,
+        metadata: { orderId, paymentId: payment.id, amount: refundAmount, currency: payment.currency },
+      },
+    });
+    await publishEvent({
+      eventType: EVENT_TYPES.REFUND_REQUESTED,
+      aggregateType: "REFUND",
+      aggregateId: refund.id,
+      payload: { refundId: refund.id, orderId, paymentId: payment.id, amount: refundAmount, currency: payment.currency },
+    }, tx);
+    return refund;
+  });
+};
+
+export const listRefundsService = async ({ status, page = 1, limit = 20 } = {}) => {
+  const skip = (page - 1) * limit;
+  const [items, total] = await Promise.all([
+    listRefunds({ status, skip, take: limit }),
+    prisma.refund.count({ where: status ? { status } : {} }),
+  ]);
+  return { items, total, page, limit };
+};
+
+const finalizeRefundSuccess = async (refundId, rawEvent) => {
+  return withTransaction(async (tx) => {
+    const before = await findRefundById(refundId, tx);
+    if (!before || before.status === "SUCCEEDED") return before;
+
+    const updated = await updateRefundStatusIfProcessing(refundId, "SUCCEEDED", {
+      processedAt: new Date(),
+      failureReason: null,
+      ...(rawEvent ? { providerPayload: rawEvent } : {}),
+    }, tx);
+    if (updated.count !== 1) return findRefundById(refundId, tx);
+
+    const refund = await findRefundById(refundId, tx);
+    await recordRefundLedger(refund, tx);
+
+    const payment = await findPaymentById(refund.paymentId, tx);
+    const paymentRefunds = await tx.refund.aggregate({
+      where: { paymentId: refund.paymentId, status: "SUCCEEDED" },
+      _sum: { amount: true },
+    });
+    if (payment && Number(paymentRefunds._sum.amount ?? 0) >= Number(payment.amount)) {
+      await tx.payment.updateMany({
+        where: { id: payment.id, status: "SUCCESS" },
+        data: { status: "REVERSED" },
+      });
+    }
+
+    const grossPayments = await tx.payment.aggregate({
+      where: { orderId: refund.orderId, status: { in: ["SUCCESS", "REVERSED"] } },
+      _sum: { amount: true },
+    });
+    const allRefunds = await tx.refund.aggregate({
+      where: { orderId: refund.orderId, status: "SUCCEEDED" },
+      _sum: { amount: true },
+    });
+    const netPaid = Number(grossPayments._sum.amount ?? 0) - Number(allRefunds._sum.amount ?? 0);
+    await tx.order.updateMany({
+      where: { id: refund.orderId },
+      data: { paymentStatus: netPaid <= 0.000001 ? "REVERSED" : "SUCCESS" },
+    });
+
+    const dispute = await tx.dispute.findFirst({
+      where: {
+        orderId: refund.orderId,
+        status: "UNDER_REVIEW",
+        resolution: { in: ["REFUND_FULL", "REFUND_PARTIAL"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (dispute) {
+      await tx.dispute.update({
+        where: { id: dispute.id },
+        data: {
+          status: "RESOLVED",
+          resolvedById: refund.reviewedById ?? dispute.assignedToId,
+          resolvedAt: new Date(),
+        },
+      });
+      await tx.order.updateMany({
+        where: { id: refund.orderId, status: "DELIVERED" },
+        data: { disputedAt: null, disputeNotes: null, completionDueAt: new Date() },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: refund.reviewedById ?? undefined,
+          action: "DISPUTE_RESOLVED_BY_REFUND",
+          resource: "Dispute",
+          resourceId: dispute.id,
+          metadata: { refundId: refund.id, orderId: refund.orderId, resolution: dispute.resolution },
+        },
+      });
+      await publishEvent({
+        eventType: EVENT_TYPES.DISPUTE_RESOLVED,
+        aggregateType: "DISPUTE",
+        aggregateId: dispute.id,
+        payload: { disputeId: dispute.id, orderId: refund.orderId, resolution: dispute.resolution, refundId: refund.id },
+      }, tx);
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: refund.reviewedById ?? undefined,
+        action: "REFUND_PROCESSED",
+        resource: "Refund",
+        resourceId: refund.id,
+        metadata: { orderId: refund.orderId, paymentId: refund.paymentId, amount: Number(refund.amount), providerReference: refund.providerReference },
+      },
+    });
+    await publishEvent({
+      eventType: EVENT_TYPES.REFUND_PROCESSED,
+      aggregateType: "REFUND",
+      aggregateId: refund.id,
+      payload: { refundId: refund.id, orderId: refund.orderId, paymentId: refund.paymentId, amount: Number(refund.amount), currency: refund.currency },
+    }, tx);
+    return refund;
+  });
+};
+
+const finalizeRefundFailure = async (refundId, rawEvent, reason) => {
+  return withTransaction(async (tx) => {
+    const refund = await findRefundById(refundId, tx);
+    if (!refund || refund.status === "SUCCEEDED" || refund.status === "FAILED") return refund;
+    const changed = await updateRefundStatusIfProcessing(refundId, "FAILED", {
+      failureReason: reason || rawEvent?.message || "Provider reported refund failure",
+      ...(rawEvent ? { providerPayload: rawEvent } : {}),
+    }, tx);
+    if (changed.count !== 1) return findRefundById(refundId, tx);
+    await tx.auditLog.create({
+      data: {
+        userId: refund.reviewedById ?? undefined,
+        action: "REFUND_FAILED",
+        resource: "Refund",
+        resourceId: refund.id,
+        metadata: { orderId: refund.orderId, paymentId: refund.paymentId, reason: reason || rawEvent?.message || "Provider reported refund failure" },
+      },
+    });
+    await publishEvent({
+      eventType: EVENT_TYPES.REFUND_FAILED,
+      aggregateType: "REFUND",
+      aggregateId: refund.id,
+      payload: { refundId: refund.id, orderId: refund.orderId, paymentId: refund.paymentId, reason: reason || "Provider reported refund failure" },
+    }, tx);
+    return findRefundById(refund.id, tx);
+  });
+};
+
+export const processRefundService = async (actorId, refundId) => {
+  const prepared = await withTransaction(async (tx) => {
+    const refund = await tx.refund.findUnique({
+      where: { id: refundId },
+      include: { payment: true },
+    });
+    if (!refund) throw new NotFoundError("Refund not found");
+    if (refund.status === "SUCCEEDED") return { alreadyProcessed: true, refund };
+    if (!["REQUESTED", "FAILED"].includes(refund.status)) {
+      throw new ConflictError(`Refund cannot be processed in status ${refund.status}`);
+    }
+    const changed = await tx.refund.updateMany({
+      where: { id: refund.id, status: refund.status },
+      data: { status: "PROCESSING", reviewedById: actorId, reviewedAt: new Date(), failureReason: null },
+    });
+    if (changed.count !== 1) throw new ConflictError("Refund status changed before processing");
+    await tx.auditLog.create({
+      data: { userId: actorId, action: "REFUND_PROCESSING_STARTED", resource: "Refund", resourceId: refund.id, metadata: { orderId: refund.orderId, amount: Number(refund.amount) } },
+    });
+    return { alreadyProcessed: false, refund: { ...refund, status: "PROCESSING", reviewedById: actorId } };
+  });
+
+  if (prepared.alreadyProcessed) return prepared.refund;
+
+  let providerResult;
+  try {
+    providerResult = await initiateRefund({
+      transaction: prepared.refund.payment.reference,
+      amountKobo: Math.round(Number(prepared.refund.amount) * 100),
+      reason: prepared.refund.reason,
+      merchantNote: `MarketIQ refund ${prepared.refund.id}`,
+    });
+  } catch (error) {
+    // Keep PROCESSING: a timeout can occur after the provider accepted the refund.
+    await withTransaction(async (tx) => {
+      await updateRefund(prepared.refund.id, {
+        failureReason: `Provider response uncertain; reconcile before retrying: ${error.message}`,
+      }, tx);
+      await tx.auditLog.create({
+        data: { userId: actorId, action: "REFUND_PROVIDER_RESPONSE_UNCERTAIN", resource: "Refund", resourceId: prepared.refund.id, metadata: { message: error.message } },
+      });
+    });
+    throw new ConflictError("Refund request was sent but provider confirmation is uncertain; reconcile the refund before retrying");
+  }
+
+  const providerReference = providerResult?.id != null ? String(providerResult.id) : null;
+  await withTransaction(async (tx) => {
+    await updateRefund(prepared.refund.id, {
+      ...(providerReference ? { providerReference } : {}),
+      providerPayload: providerResult,
+    }, tx);
+  });
+
+  const providerStatus = String(providerResult?.status ?? "").toLowerCase();
+  if (["processed", "success", "succeeded"].includes(providerStatus)) {
+    await finalizeRefundSuccess(prepared.refund.id, { data: providerResult });
+  } else if (["failed", "rejected"].includes(providerStatus)) {
+    await finalizeRefundFailure(prepared.refund.id, { data: providerResult }, "Paystack reported refund failure");
+  }
+  return findRefundById(prepared.refund.id);
+};
+
+export const handleRefundProcessed = async (providerReference, event) => {
+  const refund = await findRefundByProviderReference(String(providerReference));
+  if (!refund) return { handled: false, reason: "unknown-refund-reference" };
+  await finalizeRefundSuccess(refund.id, event);
+  return { handled: true };
+};
+
+export const handleRefundFailed = async (providerReference, event) => {
+  const refund = await findRefundByProviderReference(String(providerReference));
+  if (!refund) return { handled: false, reason: "unknown-refund-reference" };
+  await finalizeRefundFailure(refund.id, event, event?.data?.failure_reason || event?.message);
+  return { handled: true };
 };
