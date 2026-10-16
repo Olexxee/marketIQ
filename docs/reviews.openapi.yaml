@@ -85,6 +85,35 @@ paths:
           description: User's reviews and pagination metadata
         '401':
           description: Authentication required
+  /api/reviews/{reviewId}/moderation:
+    parameters:
+      - in: path
+        name: reviewId
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Reviews]
+      summary: Approve or reject a pending review (admin/staff)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [APPROVED, REJECTED] }
+      responses:
+        '200':
+          description: Review moderated
+        '403':
+          description: Admin or staff role required
+        '404':
+          description: Review not found
+        '409':
+          description: Review is not pending
   /api/reviews/{reviewId}:
     parameters:
       - in: path
