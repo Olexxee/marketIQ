@@ -7,6 +7,10 @@ import { recalculateOrderStatus } from "../orders/order.status.service.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import {
+  calculateCompletionDueAt,
+  getAutoCompletionDays,
+} from "../orders/order.completion-policy.js";
+import {
   createFulfillment,
   createFulfillmentItems,
   findFulfillmentById,
@@ -289,15 +293,10 @@ export const updateFulfillmentService = async (sellerId, id, payload) => {
       const config = await tx.businessConfig.findUnique({
         where: { key: "FULFILLMENT_AUTO_COMPLETION_DAYS" },
       });
-      const configuredDays = Number(
-        process.env.FULFILLMENT_AUTO_COMPLETION_DAYS ?? config?.value ?? 7,
-      );
-      const completionDays =
-        Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 90
-          ? configuredDays
-          : 7;
-      const completionDueAt = new Date();
-      completionDueAt.setDate(completionDueAt.getDate() + completionDays);
+      const completionDays = getAutoCompletionDays({
+        configValue: config?.value,
+      });
+      const completionDueAt = calculateCompletionDueAt(new Date(), completionDays);
 
       await tx.order.updateMany({
         where: {
