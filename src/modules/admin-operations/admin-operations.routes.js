@@ -9,6 +9,8 @@ import {
   refundIdParamSchema,
   refundListQuerySchema,
   refundRequestSchema,
+  retryRefundParamSchema,
+  retryRefundSchema,
   sellerOrderIdParamSchema,
   settlementIdParamSchema,
   settlementListQuerySchema,
@@ -24,6 +26,7 @@ import {
   approveSellerSettlement,
   markSellerSettlementPaid,
   processRefund,
+  retryRefundWithDetails,
   requestRefund,
   resolveDispute,
   reviewDispute,
@@ -40,6 +43,7 @@ router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeI
 router.get("/refunds", authorize("ADMIN"), validateQuery(refundListQuerySchema), listRefunds);
 router.post("/orders/:orderId/refunds", authorize("ADMIN"), validateParams(orderIdParamSchema), validateBody(refundRequestSchema), requestRefund);
 router.post("/refunds/:id/process", authorize("ADMIN"), validateParams(refundIdParamSchema), processRefund);
+router.post("/refunds/:id/retry", authorize("ADMIN"), validateParams(retryRefundParamSchema), validateBody(retryRefundSchema), retryRefundWithDetails);
 
 router.get("/settlements", authorize("ADMIN"), validateQuery(settlementListQuerySchema), listSettlements);
 router.post("/seller-orders/:sellerOrderId/settlements", authorize("ADMIN"), validateParams(sellerOrderIdParamSchema), requestSellerSettlement);
