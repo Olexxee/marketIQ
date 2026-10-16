@@ -3,6 +3,7 @@ import {
   handleChargeFailed,
   handleChargeSuccess,
   handleRefundFailed,
+  handleRefundNeedsAttention,
   handleRefundProcessed,
 } from "./payment.service.js";
 
@@ -38,8 +39,8 @@ export const paystackWebhook = async (req, res) => {
   if (!eventType) {
     return res.status(200).json({ success: true, ignored: true });
   }
-  const isRefundEvent = eventType === "refund.processed" || eventType === "refund.failed";
-  if (isRefundEvent ? event?.data?.id == null : !reference) {
+  const isRefundEvent = ["refund.pending", "refund.processing", "refund.needs-attention", "refund.processed", "refund.failed"].includes(eventType);
+  if (isRefundEvent ? (event?.data?.id == null && event?.data?.refund_reference == null && !event?.data?.transaction_reference) : !reference) {
     return res.status(200).json({ success: true, ignored: true });
   }
 
@@ -48,15 +49,13 @@ export const paystackWebhook = async (req, res) => {
       await handleChargeSuccess(reference, event);
     } else if (eventType === "charge.failed") {
       await handleChargeFailed(reference, event);
-    } else if (eventType === "refund.processed") {
-      const refundReference = event?.data?.id;
-      if (refundReference == null) return res.status(400).json({ success: false, message: "Invalid refund event" });
-      const result = await handleRefundProcessed(refundReference, event);
-      if (!result.handled) return res.status(500).json({ success: false });
-    } else if (eventType === "refund.failed") {
-      const refundReference = event?.data?.id;
-      if (refundReference == null) return res.status(400).json({ success: false, message: "Invalid refund event" });
-      const result = await handleRefundFailed(refundReference, event);
+    } else if (eventType === "refund.processed" || eventType === "refund.failed" || eventType === "refund.needs-attention") {
+      const refundReference = event?.data?.refund_reference ?? event?.data?.id;
+      const result = eventType === "refund.processed"
+        ? await handleRefundProcessed(refundReference, event)
+        : eventType === "refund.failed"
+          ? await handleRefundFailed(refundReference, event)
+          : await handleRefundNeedsAttention(refundReference, event);
       if (!result.handled) return res.status(500).json({ success: false });
     }
   } catch (err) {
