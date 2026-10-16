@@ -48,7 +48,7 @@ Base path: `/api/admin/operations`. Dispute review supports ADMIN and STAFF; dis
 - `POST /refunds/:id/process` submits the refund to Paystack. If the provider response times out, the record stays PROCESSING with a reconciliation note; do not retry until the provider's state is checked.
 - `POST /refunds/:id/retry` accepts `{ "currency": "NGN", "accountNumber": "1234567890", "bankId": "..." }` for a Paystack refund in NEEDS_ATTENTION. Bank details are sent to Paystack and are not persisted by MarketIQ.
 - `GET /settlements?status=REQUESTED&page=1&limit=20`
-- `POST /seller-orders/:sellerOrderId/settlements`
+- `POST /seller-orders/:sellerOrderId/settlements` (after refunds or an amount adjustment, provide `{ "amount": 5000, "adjustmentReason": "documented reconciliation" }`)
 - `POST /settlements/:id/approve`
 - `POST /settlements/:id/mark-paid` with `{ "externalReference": "bank-transfer-reference" }`. This endpoint records a manually executed payout; it does not initiate a bank transfer.
 
