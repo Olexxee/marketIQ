@@ -248,6 +248,12 @@ export const disputeBuyerOrderService = async (userId, orderId, notes) => {
 const ACTIVE_DISPUTE_STATUSES = ["OPEN", "UNDER_REVIEW"];
 
 const createDisputeEvidence = async (tx, dispute, actorId, payload) => {
+  await tx.$queryRaw`SELECT id FROM "Dispute" WHERE id = ${dispute.id} AND status IN ('OPEN', 'UNDER_REVIEW') FOR UPDATE`;
+  const currentDispute = await tx.dispute.findUnique({ where: { id: dispute.id } });
+  if (!currentDispute || !ACTIVE_DISPUTE_STATUSES.includes(currentDispute.status)) {
+    throw new ConflictError("Dispute is no longer accepting evidence");
+  }
+
   const evidence = await tx.disputeEvidence.create({
     data: {
       disputeId: dispute.id,
