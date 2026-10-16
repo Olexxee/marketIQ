@@ -59,7 +59,7 @@ export const listSettlements = asyncWrapper(async (req, res) => {
 });
 
 export const requestSellerSettlement = asyncWrapper(async (req, res) => {
-  const settlement = await requestSellerSettlementService(req.user.id, req.params.sellerOrderId);
+  const settlement = await requestSellerSettlementService(req.user.id, req.params.sellerOrderId, req.body);
   return successResponse({ res, statusCode: 201, message: "Seller settlement requested", data: settlement });
 });
 
