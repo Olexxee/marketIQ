@@ -7,6 +7,7 @@ import {
 import {
   initializeTransaction,
   initiateRefund,
+  retryRefundWithCustomerDetails,
   verifyTransaction,
 } from "../../config/paystack.js";
 import {
@@ -722,16 +723,106 @@ export const processRefundService = async (actorId, refundId) => {
   return findRefundById(prepared.refund.id);
 };
 
+
+const findRefundForWebhook = async (providerReference, event) => {
+  if (providerReference != null) {
+    const byProviderReference = await findRefundByProviderReference(String(providerReference));
+    if (byProviderReference) return byProviderReference;
+  }
+
+  const transactionReference = event?.data?.transaction_reference;
+  if (!transactionReference) return null;
+  const payment = await findPaymentByReference(transactionReference);
+  if (!payment) return null;
+  const candidates = await (await import("../../config/prisma.js")).default.refund.findMany({
+    where: { paymentId: payment.id, status: "PROCESSING" },
+    orderBy: { createdAt: "asc" },
+  });
+  const amountKobo = Number(event?.data?.amount);
+  const matches = candidates.filter((candidate) =>
+    Number.isFinite(amountKobo) && Math.round(Number(candidate.amount) * 100) === amountKobo,
+  );
+  return matches.length === 1 ? matches[0] : null;
+};
+
 export const handleRefundProcessed = async (providerReference, event) => {
-  const refund = await findRefundByProviderReference(String(providerReference));
+  const refund = await findRefundForWebhook(providerReference, event);
   if (!refund) return { handled: false, reason: "unknown-refund-reference" };
   await finalizeRefundSuccess(refund.id, event);
   return { handled: true };
 };
 
 export const handleRefundFailed = async (providerReference, event) => {
-  const refund = await findRefundByProviderReference(String(providerReference));
+  const refund = await findRefundForWebhook(providerReference, event);
   if (!refund) return { handled: false, reason: "unknown-refund-reference" };
   await finalizeRefundFailure(refund.id, event, event?.data?.failure_reason || event?.message);
   return { handled: true };
+};
+
+export const handleRefundNeedsAttention = async (providerReference, event) => {
+  const refund = await findRefundForWebhook(providerReference, event);
+  if (!refund) return { handled: false, reason: "unknown-refund-reference" };
+  return withTransaction(async (tx) => {
+    const changed = await updateRefundStatusIfProcessing(refund.id, "NEEDS_ATTENTION", {
+      failureReason: "Paystack requires customer bank details to continue this refund",
+      providerPayload: event,
+    }, tx);
+    if (changed.count === 1) {
+      await tx.auditLog.create({
+        data: {
+          userId: refund.reviewedById ?? undefined,
+          action: "REFUND_NEEDS_ATTENTION",
+          resource: "Refund",
+          resourceId: refund.id,
+          metadata: { orderId: refund.orderId, paymentId: refund.paymentId, providerReference: refund.providerReference },
+        },
+      });
+    }
+    return { handled: true };
+  });
+};
+
+export const retryRefundWithDetailsService = async (actorId, refundId, details) => {
+  const prepared = await withTransaction(async (tx) => {
+    const refund = await tx.refund.findUnique({ where: { id: refundId }, include: { payment: true } });
+    if (!refund) throw new NotFoundError("Refund not found");
+    if (refund.status !== "NEEDS_ATTENTION" || !refund.providerReference) {
+      throw new ConflictError("Only refunds requiring attention with a provider reference can be retried");
+    }
+    const changed = await tx.refund.updateMany({
+      where: { id: refundId, status: "NEEDS_ATTENTION" },
+      data: { status: "PROCESSING", reviewedById: actorId, reviewedAt: new Date(), failureReason: null },
+    });
+    if (changed.count !== 1) throw new ConflictError("Refund status changed before retry");
+    await tx.auditLog.create({
+      data: {
+        userId: actorId,
+        action: "REFUND_RETRY_STARTED",
+        resource: "Refund",
+        resourceId: refundId,
+        metadata: { orderId: refund.orderId, currency: details.currency, bankId: details.bankId },
+      },
+    });
+    return refund;
+  });
+
+  let providerResult;
+  try {
+    providerResult = await retryRefundWithCustomerDetails(prepared.providerReference, details);
+  } catch (error) {
+    await withTransaction(async (tx) => {
+      await updateRefund(refundId, {
+        failureReason: `Provider response uncertain; reconcile before retrying: ${error.message}`,
+      }, tx);
+    });
+    throw new ConflictError("Refund retry was submitted but provider confirmation is uncertain; reconcile before retrying");
+  }
+
+  await withTransaction(async (tx) => {
+    await updateRefund(refundId, { providerPayload: providerResult }, tx);
+  });
+  const status = String(providerResult?.status ?? "").toLowerCase();
+  if (status === "processed") await finalizeRefundSuccess(refundId, { data: providerResult });
+  else if (status === "failed") await finalizeRefundFailure(refundId, { data: providerResult }, "Paystack reported refund failure");
+  return findRefundById(refundId);
 };
