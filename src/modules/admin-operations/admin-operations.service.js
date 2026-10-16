@@ -186,7 +186,7 @@ export const listSettlementsService = async ({ status, page = 1, limit = 20 } = 
   return { items, total, page, limit };
 };
 
-export const requestSellerSettlementService = async (actorId, sellerOrderId) => {
+export const requestSellerSettlementService = async (actorId, sellerOrderId, { amount, adjustmentReason } = {}) => {
   return withTransaction(async (tx) => {
     const sellerOrder = await tx.sellerOrder.findUnique({
       where: { id: sellerOrderId },
@@ -203,15 +203,24 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId) => 
       throw new ConflictError("A disputed order cannot be settled");
     }
 
-    const refundExposure = await tx.refund.aggregate({
-      where: {
-        orderId: sellerOrder.orderId,
-        status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "SUCCEEDED"] },
-      },
+    const pendingRefunds = await tx.refund.aggregate({
+      where: { orderId: sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
       _sum: { amount: true },
     });
-    if (Number(refundExposure._sum.amount ?? 0) > 0) {
-      throw new ConflictError("Order has refund exposure; finance must reconcile refunds before seller settlement");
+    if (Number(pendingRefunds._sum.amount ?? 0) > 0) {
+      throw new ConflictError("Order has a pending refund; reconcile it before seller settlement");
+    }
+    const succeededRefunds = await tx.refund.aggregate({
+      where: { orderId: sellerOrder.orderId, status: "SUCCEEDED" },
+      _sum: { amount: true },
+    });
+    const hasSucceededRefund = Number(succeededRefunds._sum.amount ?? 0) > 0;
+    const settlementAmount = amount === undefined ? Number(sellerOrder.total) : Number(amount);
+    if (!Number.isFinite(settlementAmount) || settlementAmount <= 0 || settlementAmount > Number(sellerOrder.total)) {
+      throw new ConflictError("Settlement amount must be positive and cannot exceed the seller order total");
+    }
+    if ((hasSucceededRefund || settlementAmount < Number(sellerOrder.total)) && !adjustmentReason?.trim()) {
+      throw new ConflictError("An adjustmentReason is required when settlement amount differs from the seller order total or refunds have been processed");
     }
 
     const existing = await tx.sellerSettlement.findUnique({ where: { sellerOrderId } });
@@ -221,11 +230,11 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId) => 
     if (existing) {
       const reset = await tx.sellerSettlement.updateMany({
         where: { id: existing.id, status: { in: ["FAILED", "CANCELLED"] } },
-        data: { status: "REQUESTED", requestedById: actorId, failureReason: null, amount: sellerOrder.total },
+        data: { status: "REQUESTED", requestedById: actorId, failureReason: null, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null },
       });
       if (reset.count !== 1) throw new ConflictError("Settlement state changed before it could be re-requested");
       await tx.auditLog.create({
-        data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: existing.id, metadata: { sellerOrderId, amount: Number(sellerOrder.total), retried: true } },
+        data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: existing.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null, retried: true } },
       });
       return tx.sellerSettlement.findUnique({ where: { id: existing.id } });
     }
@@ -234,13 +243,14 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId) => 
       data: {
         sellerOrderId,
         requestedById: actorId,
-        amount: sellerOrder.total,
+        amount: settlementAmount,
+        adjustmentReason: adjustmentReason?.trim() || null,
         currency: "NGN",
         status: "REQUESTED",
       },
     });
     await tx.auditLog.create({
-      data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: settlement.id, metadata: { sellerOrderId, amount: Number(sellerOrder.total) } },
+      data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: settlement.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null } },
     });
     return settlement;
   });
@@ -261,6 +271,16 @@ export const approveSellerSettlementService = async (actorId, settlementId) => {
         settlement.sellerOrder.order.paymentStatus !== "SUCCESS" ||
         settlement.sellerOrder.order.disputedAt) {
       throw new ConflictError("Settlement eligibility changed; order must be completed, paid, and undisputed");
+    }
+    const pendingRefund = await tx.refund.count({
+      where: { orderId: settlement.sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
+    });
+    if (pendingRefund > 0) throw new ConflictError("Pending refunds block seller settlement approval");
+    const succeededRefund = await tx.refund.count({
+      where: { orderId: settlement.sellerOrder.orderId, status: "SUCCEEDED" },
+    });
+    if (succeededRefund > 0 && (!settlement.adjustmentReason || Number(settlement.amount) >= Number(settlement.sellerOrder.total))) {
+      throw new ConflictError("Processed refunds require a documented adjusted settlement amount");
     }
     const changed = await tx.sellerSettlement.updateMany({
       where: { id: settlementId, status: settlement.status },
@@ -289,6 +309,16 @@ export const markSellerSettlementPaidService = async (actorId, settlementId, ext
         settlement.sellerOrder.order.paymentStatus !== "SUCCESS" ||
         settlement.sellerOrder.order.disputedAt) {
       throw new ConflictError("Settlement eligibility changed before payout confirmation");
+    }
+    const pendingRefund = await tx.refund.count({
+      where: { orderId: settlement.sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
+    });
+    if (pendingRefund > 0) throw new ConflictError("Pending refunds block seller payout confirmation");
+    const succeededRefund = await tx.refund.count({
+      where: { orderId: settlement.sellerOrder.orderId, status: "SUCCEEDED" },
+    });
+    if (succeededRefund > 0 && (!settlement.adjustmentReason || Number(settlement.amount) >= Number(settlement.sellerOrder.total))) {
+      throw new ConflictError("Processed refunds require a documented adjusted settlement amount");
     }
 
     const changed = await tx.sellerSettlement.updateMany({
