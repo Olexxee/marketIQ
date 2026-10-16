@@ -83,3 +83,17 @@ export const initiateRefund = async ({ transaction, amountKobo, reason, merchant
     },
   });
 };
+
+
+export const retryRefundWithCustomerDetails = async (refundId, details) => {
+  return paystackRequest(`/refund/retry_with_customer_details/${encodeURIComponent(refundId)}`, {
+    method: "POST",
+    body: {
+      refund_account_details: {
+        currency: details.currency,
+        account_number: details.accountNumber,
+        bank_id: details.bankId,
+      },
+    },
+  });
+};
