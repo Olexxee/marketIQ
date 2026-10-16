@@ -6,6 +6,7 @@ import {
   getProductReviewSummaryService,
   listMyReviewsService,
   listProductReviewsService,
+  moderateReviewService,
   updateMyReviewService,
 } from "./review.service.js";
 
@@ -68,6 +69,16 @@ export const deleteMyReview = asyncWrapper(async (req, res) => {
     statusCode: 200,
     message: "Review deleted successfully",
     data: result,
+  });
+});
+
+export const moderateReview = asyncWrapper(async (req, res) => {
+  const review = await moderateReviewService(req.params.reviewId, req.validated.body.status);
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: `Review ${review.status.toLowerCase()} successfully`,
+    data: review,
   });
 });
 
