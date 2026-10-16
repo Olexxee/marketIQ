@@ -17,3 +17,19 @@ ALTER TABLE "Order"
 
 CREATE UNIQUE INDEX "Fulfillment_sellerOrderId_key"
   ON "Fulfillment"("sellerOrderId");
+
+INSERT INTO "BusinessConfig" ("id", "key", "value", "createdAt", "updatedAt")
+VALUES (
+  'fulfillment-auto-completion-days',
+  'FULFILLMENT_AUTO_COMPLETION_DAYS',
+  '7'::jsonb,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("key") DO NOTHING;
+
+UPDATE "Order"
+SET "completionDueAt" = COALESCE("updatedAt", NOW()) + INTERVAL '7 days'
+WHERE "status" = 'DELIVERED'
+  AND "completionDueAt" IS NULL
+  AND "disputedAt" IS NULL;
