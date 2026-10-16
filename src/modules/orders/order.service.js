@@ -166,11 +166,15 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
       throw new ConflictError("Order must be delivered before confirmation");
     }
 
-    await completeDeliveredSellerOrders(orderId, tx);
-    await tx.order.update({
-      where: { id: orderId },
+    const completionClaim = await tx.order.updateMany({
+      where: { id: orderId, status: "DELIVERED", disputedAt: null },
       data: { completionDueAt: null },
     });
+    if (completionClaim.count !== 1) {
+      throw new ConflictError("Order state changed before receipt confirmation");
+    }
+
+    await completeDeliveredSellerOrders(orderId, tx);
     await recalculateOrderStatus(orderId, tx);
 
     await publishEvent(
