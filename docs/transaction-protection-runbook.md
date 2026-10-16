@@ -46,6 +46,7 @@ Base path: `/api/admin/operations`. Dispute review supports ADMIN and STAFF; dis
 - `GET /refunds?status=REQUESTED&page=1&limit=20`
 - `POST /orders/:orderId/refunds` with `{ "amount": 1000, "reason": "...", "idempotencyKey": "unique-key-123" }`. Omit amount to request the remaining refundable balance.
 - `POST /refunds/:id/process` submits the refund to Paystack. If the provider response times out, the record stays PROCESSING with a reconciliation note; do not retry until the provider's state is checked.
+- `POST /refunds/:id/retry` accepts `{ "currency": "NGN", "accountNumber": "1234567890", "bankId": "..." }` for a Paystack refund in NEEDS_ATTENTION. Bank details are sent to Paystack and are not persisted by MarketIQ.
 - `GET /settlements?status=REQUESTED&page=1&limit=20`
 - `POST /seller-orders/:sellerOrderId/settlements`
 - `POST /settlements/:id/approve`
