@@ -121,6 +121,15 @@ export const deleteMyReviewService = async (userId, reviewId) => {
   return { deleted: true };
 };
 
+export const moderateReviewService = async (reviewId, status) => {
+  const review = await findReviewById(reviewId);
+  if (!review) throw new NotFoundError("Review not found");
+  if (review.status !== "PENDING") {
+    throw new ConflictError("Only pending reviews can be moderated");
+  }
+  return updateReview(reviewId, { status });
+};
+
 export const listMyReviewsService = async (userId, pagination) => {
   const result = await findMyReviews({ userId, ...pagination });
   return result;
