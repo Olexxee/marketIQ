@@ -5,6 +5,7 @@ import { successResponse } from "../../lib/response.js";
 import {
   cancelBuyerOrderService,
   confirmBuyerOrderService,
+  disputeBuyerOrderService,
   getBuyerOrderService,
   getSellerOrderService,
   listBuyerOrdersService,
@@ -114,5 +115,21 @@ export const updateSellerOrderStatus = asyncWrapper(async (req, res) => {
     statusCode: 200,
     message: "Seller order status updated",
     data: sellerOrder,
+  });
+});
+
+
+export const disputeBuyerOrder = asyncWrapper(async (req, res) => {
+  const order = await disputeBuyerOrderService(
+    req.user.id,
+    req.params.id,
+    req.body.notes,
+  );
+
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Order dispute submitted successfully",
+    data: order,
   });
 });
