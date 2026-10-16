@@ -20,7 +20,8 @@ export const processExpiredUnpaidOrders = async () => {
   });
 
   for (const candidate of candidates) {
-    await prisma.$transaction(async (tx) => {
+    try {
+      await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: candidate.id },
         include: { items: true },
@@ -51,6 +52,9 @@ export const processExpiredUnpaidOrders = async () => {
       await tx.auditLog.create({
         data: { action: "UNPAID_ORDER_EXPIRED", resource: "Order", resourceId: order.id, metadata: { paymentExpiresAt: order.paymentExpiresAt.toISOString() } },
       });
-    }, { timeout: 15000 });
+      }, { timeout: 15000 });
+    } catch (error) {
+      console.error("[PAYMENT-EXPIRY] Failed for order:", candidate.id, error?.message);
+    }
   }
 };
