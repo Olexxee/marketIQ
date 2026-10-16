@@ -4,6 +4,7 @@ import { deriveOrderStatus } from "./order.status.service.js";
 import {
   calculateCompletionDueAt,
   getAutoCompletionDays,
+  areSellerOrdersResolved,
 } from "./order.completion-policy.js";
 
 const sellerOrder = (status) => ({ status });
@@ -52,4 +53,10 @@ test("completion deadline uses an exact day interval", () => {
     calculateCompletionDueAt(now, 7).toISOString(),
     "2026-01-08T12:00:00.000Z",
   );
+});
+
+test("multi-seller completion accepts cancelled seller orders as resolved", () => {
+  assert.equal(areSellerOrdersResolved([{ status: "DELIVERED" }, { status: "CANCELLED" }]), true);
+  assert.equal(areSellerOrdersResolved([{ status: "DELIVERED" }, { status: "PROCESSING" }]), false);
+  assert.equal(areSellerOrdersResolved([]), false);
 });
