@@ -262,7 +262,7 @@ export const handleChargeFailed = async (reference, event) => {
   const payment = await findPaymentByReference(reference);
 
   if (!payment) return { handled: false, reason: "unknown-reference" };
-  if (payment.status === "SUCCESS")
+  if (payment.status === "SUCCESS" || payment.status === "REVERSED")
     return { handled: true, reason: "already-success" };
   if (payment.status === "FAILED")
     return { handled: true, reason: "already-processed" };
