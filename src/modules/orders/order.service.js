@@ -204,14 +204,24 @@ export const disputeBuyerOrderService = async (userId, orderId, notes) => {
       throw new ConflictError("This order is already disputed");
     }
 
-    await tx.order.update({
-      where: { id: orderId },
+    const disputed = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        status: "DELIVERED",
+        disputedAt: null,
+      },
       data: {
         disputedAt: new Date(),
         disputeNotes: notes,
         completionDueAt: null,
       },
     });
+
+    if (disputed.count !== 1) {
+      throw new ConflictError(
+        "Order state changed before the dispute could be recorded",
+      );
+    }
 
     return findBuyerOrderById(orderId, userId, tx);
   });
