@@ -196,11 +196,7 @@ export const verifyPaymentService = async (userId, reference) => {
     }
   }
 
-  if (
-    payment.status === "SUCCESS" ||
-    payment.status === "FAILED" ||
-    payment.status === "REVERSED"
-  ) {
+  if (payment.status === "SUCCESS" || payment.status === "REVERSED") {
     return payment;
   }
 
@@ -240,7 +236,7 @@ export const handleChargeSuccess = async (reference, event) => {
     return { handled: false, reason: "unknown-reference" };
   }
 
-  if (payment.status === "SUCCESS") {
+  if (payment.status === "SUCCESS" || payment.status === "REVERSED") {
     return { handled: true, reason: "already-processed" };
   }
 
@@ -248,14 +244,14 @@ export const handleChargeSuccess = async (reference, event) => {
   const receivedKobo = Number(event?.data?.amount ?? 0);
 
   if (expectedKobo !== receivedKobo) {
-    await markPaymentFailed(payment.id, "Amount mismatch");
+    await markPaymentFailed(payment.id, "Paystack charge amount did not match the expected order payment amount");
     return { handled: false, reason: "amount-mismatch" };
   }
 
   const currency = event?.data?.currency;
 
   if (currency && currency !== payment.currency) {
-    await markPaymentFailed(payment.id, "Currency mismatch");
+    await markPaymentFailed(payment.id, "Paystack charge currency did not match the expected payment currency");
     return { handled: false, reason: "currency-mismatch" };
   }
 
@@ -424,11 +420,28 @@ const applyFailedPayment = async (paymentId, rawEvent) => {
   });
 };
 
-const markPaymentFailed = async (paymentId) => {
+const markPaymentFailed = async (paymentId, reason = "Payment verification mismatch") => {
   return withTransaction(async (tx) => {
     const payment = await findPaymentById(paymentId, tx);
-    if (!payment || payment.status === "SUCCESS") return;
-    await updatePayment(paymentId, { status: "FAILED" }, tx);
+    if (!payment || payment.status === "SUCCESS" || payment.status === "REVERSED") return;
+    const changed = await updatePaymentStatusIfPending(paymentId, "FAILED", tx, {
+      providerPayload: { reconciliationRequired: true, reason },
+    });
+    if (changed.count !== 1) return;
+    await tx.auditLog.create({
+      data: {
+        action: "PAYMENT_RECONCILIATION_REQUIRED",
+        resource: "Payment",
+        resourceId: paymentId,
+        metadata: { orderId: payment.orderId, reference: payment.reference, reason },
+      },
+    });
+    await publishEvent({
+      eventType: EVENT_TYPES.PAYMENT_RECONCILIATION_REQUIRED,
+      aggregateType: "PAYMENT",
+      aggregateId: paymentId,
+      payload: { paymentId, orderId: payment.orderId, reference: payment.reference, reason },
+    }, tx);
   });
 };
 
