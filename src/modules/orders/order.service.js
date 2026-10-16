@@ -242,6 +242,93 @@ export const disputeBuyerOrderService = async (userId, orderId, notes) => {
 };
 
 // ============================================================
+// DISPUTE EVIDENCE
+// ============================================================
+
+const ACTIVE_DISPUTE_STATUSES = ["OPEN", "UNDER_REVIEW"];
+
+const createDisputeEvidence = async (tx, dispute, actorId, payload) => {
+  const evidence = await tx.disputeEvidence.create({
+    data: {
+      disputeId: dispute.id,
+      submittedById: actorId,
+      type: payload.type,
+      description: payload.description,
+      url: payload.url ?? null,
+    },
+  });
+
+  await tx.auditLog.create({
+    data: {
+      userId: actorId,
+      action: "DISPUTE_EVIDENCE_SUBMITTED",
+      resource: "DisputeEvidence",
+      resourceId: evidence.id,
+      metadata: {
+        disputeId: dispute.id,
+        orderId: dispute.orderId,
+        type: payload.type,
+        hasUrl: Boolean(payload.url),
+      },
+    },
+  });
+
+  return tx.disputeEvidence.findUnique({
+    where: { id: evidence.id },
+    include: {
+      submittedBy: { select: { id: true, fullName: true } },
+    },
+  });
+};
+
+export const submitBuyerDisputeEvidenceService = async (userId, orderId, payload) => {
+  return withTransaction(async (tx) => {
+    const order = await findOrderById(orderId, tx);
+    if (!order || order.buyerId !== userId) {
+      throw new NotFoundError("Order not found");
+    }
+
+    const dispute = await tx.dispute.findFirst({
+      where: { orderId, status: { in: ACTIVE_DISPUTE_STATUSES } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!dispute) {
+      throw new ConflictError("There is no open dispute for this order");
+    }
+
+    return createDisputeEvidence(tx, dispute, userId, payload);
+  });
+};
+
+export const submitSellerDisputeEvidenceService = async (
+  actorId,
+  sellerId,
+  sellerOrderId,
+  payload,
+) => {
+  return withTransaction(async (tx) => {
+    const sellerOrder = await findSellerOrderById(sellerOrderId, sellerId, tx);
+    if (!sellerOrder) {
+      throw new NotFoundError("Seller order not found");
+    }
+
+    const dispute = await tx.dispute.findFirst({
+      where: {
+        orderId: sellerOrder.orderId,
+        status: { in: ACTIVE_DISPUTE_STATUSES },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!dispute) {
+      throw new ConflictError("There is no open dispute for this order");
+    }
+
+    return createDisputeEvidence(tx, dispute, actorId, payload);
+  });
+};
+
+
+// ============================================================
 // SELLER READS
 // ============================================================
 
