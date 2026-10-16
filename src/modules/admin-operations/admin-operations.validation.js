@@ -32,7 +32,7 @@ export const refundRequestSchema = z.object({
 });
 
 export const refundListQuerySchema = z.object({
-  status: z.enum(["REQUESTED", "APPROVED", "PROCESSING", "SUCCEEDED", "FAILED", "REJECTED"]).optional(),
+  status: z.enum(["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION", "SUCCEEDED", "FAILED", "REJECTED"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -47,4 +47,13 @@ export const settlementListQuerySchema = z.object({
   status: z.enum(["REQUESTED", "APPROVED", "PROCESSING", "PAID", "FAILED", "CANCELLED"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const retryRefundParamSchema = z.object({
+  id: cuid,
+});
+export const retryRefundSchema = z.object({
+  currency: z.literal("NGN"),
+  accountNumber: z.string().regex(/^\d{10}$/),
+  bankId: z.string().trim().min(1).max(50),
 });
