@@ -8,6 +8,7 @@ import {
   markSellerSettlementPaidService,
   listDisputesService,
   listPaymentReconciliationService,
+  resolvePaymentReconciliationService,
   resolveDisputeService,
   reviewDisputeService,
 } from "./admin-operations.service.js";
@@ -88,5 +89,19 @@ export const listPaymentReconciliation = asyncWrapper(async (req, res) => {
     message: "Payment reconciliation items retrieved",
     data: result.items,
     meta: { page: result.page, limit: result.limit, total: result.total, totalPages: Math.ceil(result.total / result.limit) },
+  });
+});
+
+export const resolvePaymentReconciliation = asyncWrapper(async (req, res) => {
+  const payment = await resolvePaymentReconciliationService(
+    req.user.id,
+    req.params.id,
+    req.body,
+  );
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Payment reconciliation item resolved",
+    data: payment,
   });
 });
