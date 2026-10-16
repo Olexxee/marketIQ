@@ -82,16 +82,15 @@ export const resolveDisputeService = async (actorId, disputeId, { resolution, re
       throw new ConflictError("A positive refundAmount is required for a partial refund");
     }
 
-    const refund = await requestRefundService(actorId, {
-      orderId: dispute.orderId,
-      amount: resolution === "REFUND_PARTIAL" ? Number(refundAmount) : undefined,
-      reason: resolutionNotes || `Refund approved as dispute resolution ${resolution}`,
-      idempotencyKey: `dispute-refund:${dispute.id}:${resolution}`,
-    });
-
-    return withTransaction(async (tx) => {
-      const updated = await tx.dispute.updateMany({
-        where: { id: disputeId, status: { in: ["OPEN", "UNDER_REVIEW"] } },
+    // Claim the resolution before creating the refund, so a parallel admin
+    // cannot close the dispute with a conflicting outcome.
+    await withTransaction(async (tx) => {
+      const claimed = await tx.dispute.updateMany({
+        where: {
+          id: disputeId,
+          status: { in: ["OPEN", "UNDER_REVIEW"] },
+          OR: [{ resolution: null }, { resolution }],
+        },
         data: {
           status: "UNDER_REVIEW",
           assignedToId: actorId,
@@ -99,12 +98,25 @@ export const resolveDisputeService = async (actorId, disputeId, { resolution, re
           resolutionNotes: resolutionNotes || null,
         },
       });
-      if (updated.count !== 1) throw new ConflictError("Dispute changed while the refund request was being created");
+      if (claimed.count !== 1) {
+        throw new ConflictError("Dispute has already been resolved or has a different resolution in progress");
+      }
       await tx.auditLog.create({
-        data: { userId: actorId, action: "DISPUTE_REFUND_REQUESTED", resource: "Dispute", resourceId: disputeId, metadata: { orderId: dispute.orderId, refundId: refund.id, resolution } },
+        data: { userId: actorId, action: "DISPUTE_REFUND_DECISION_RECORDED", resource: "Dispute", resourceId: disputeId, metadata: { orderId: dispute.orderId, resolution } },
       });
-      return { dispute: await tx.dispute.findUnique({ where: { id: disputeId } }), refund };
     });
+
+    const refund = await requestRefundService(actorId, {
+      orderId: dispute.orderId,
+      amount: resolution === "REFUND_PARTIAL" ? Number(refundAmount) : undefined,
+      reason: resolutionNotes || `Refund approved as dispute resolution ${resolution}`,
+      idempotencyKey: `dispute-refund:${dispute.id}:${resolution}`,
+    });
+
+    return {
+      dispute: await prisma.dispute.findUnique({ where: { id: disputeId } }),
+      refund,
+    };
   }
 
   return withTransaction(async (tx) => {
