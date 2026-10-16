@@ -139,3 +139,10 @@ export const getRefundExposureForPayment = async (paymentId, tx) => {
     _sum: { amount: true },
   });
 };
+
+export const updatePaymentStatusIfUnsettled = async (id, status, tx, extra = {}) => {
+  return dbClient(tx).payment.updateMany({
+    where: { id, status: { in: ["PENDING", "FAILED", "ABANDONED"] } },
+    data: { status, ...extra },
+  });
+};
