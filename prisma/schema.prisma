@@ -1199,6 +1199,7 @@ model Order {
   notes String?
 
   // Completion policy: set when all seller shipments have been reported delivered.
+  paymentExpiresAt DateTime?
   completionDueAt DateTime?
   disputedAt      DateTime?
   disputeNotes    String?
