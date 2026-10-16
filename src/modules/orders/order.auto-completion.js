@@ -38,17 +38,26 @@ export const processAutoCompletion = async () => {
         return;
       }
 
+      const claimed = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          status: "DELIVERED",
+          completionDueAt: { lte: new Date() },
+          disputedAt: null,
+        },
+        data: { completionDueAt: null },
+      });
+
+      if (claimed.count !== 1) {
+        return;
+      }
+
       await tx.sellerOrder.updateMany({
         where: { orderId: order.id, status: "DELIVERED" },
         data: { status: "COMPLETED" },
       });
 
       await recalculateOrderStatus(order.id, tx);
-      await tx.order.update({
-        where: { id: order.id },
-        data: { completionDueAt: null },
-      });
-
       await publishEvent(
         {
           eventType: EVENT_TYPES.ORDER_COMPLETED,
