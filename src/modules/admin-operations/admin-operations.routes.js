@@ -9,12 +9,20 @@ import {
   refundIdParamSchema,
   refundListQuerySchema,
   refundRequestSchema,
+  sellerOrderIdParamSchema,
+  settlementIdParamSchema,
+  settlementListQuerySchema,
+  settlementPaidSchema,
   resolveDisputeSchema,
 } from "./admin-operations.validation.js";
 import {
   getDispute,
   listDisputes,
   listRefunds,
+  listSettlements,
+  requestSellerSettlement,
+  approveSellerSettlement,
+  markSellerSettlementPaid,
   processRefund,
   requestRefund,
   resolveDispute,
@@ -32,5 +40,10 @@ router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeI
 router.get("/refunds", authorize("ADMIN"), validateQuery(refundListQuerySchema), listRefunds);
 router.post("/orders/:orderId/refunds", authorize("ADMIN"), validateParams(orderIdParamSchema), validateBody(refundRequestSchema), requestRefund);
 router.post("/refunds/:id/process", authorize("ADMIN"), validateParams(refundIdParamSchema), processRefund);
+
+router.get("/settlements", authorize("ADMIN"), validateQuery(settlementListQuerySchema), listSettlements);
+router.post("/seller-orders/:sellerOrderId/settlements", authorize("ADMIN"), validateParams(sellerOrderIdParamSchema), requestSellerSettlement);
+router.post("/settlements/:id/approve", authorize("ADMIN"), validateParams(settlementIdParamSchema), approveSellerSettlement);
+router.post("/settlements/:id/mark-paid", authorize("ADMIN"), validateParams(settlementIdParamSchema), validateBody(settlementPaidSchema), markSellerSettlementPaid);
 
 export default router;
