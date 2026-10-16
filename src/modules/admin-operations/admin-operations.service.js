@@ -188,7 +188,13 @@ export const listSettlementsService = async ({ status, page = 1, limit = 20 } = 
 
 export const requestSellerSettlementService = async (actorId, sellerOrderId, { amount, adjustmentReason } = {}) => {
   return withTransaction(async (tx) => {
-    const sellerOrder = await tx.sellerOrder.findUnique({
+    let sellerOrder = await tx.sellerOrder.findUnique({
+      where: { id: sellerOrderId },
+      include: { order: true, seller: { select: { id: true, businessName: true } } },
+    });
+    if (!sellerOrder) throw new NotFoundError("Seller order not found");
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${sellerOrder.orderId} FOR UPDATE`;
+    sellerOrder = await tx.sellerOrder.findUnique({
       where: { id: sellerOrderId },
       include: { order: true, seller: { select: { id: true, businessName: true } } },
     });
@@ -266,6 +272,13 @@ export const approveSellerSettlementService = async (actorId, settlementId) => {
       include: { sellerOrder: { include: { order: true } } },
     });
     if (!settlement) throw new NotFoundError("Settlement not found");
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${settlement.sellerOrder.orderId} FOR UPDATE`;
+    const refreshed = await tx.sellerSettlement.findUnique({
+      where: { id: settlementId },
+      include: { sellerOrder: { include: { order: true } } },
+    });
+    if (!refreshed) throw new NotFoundError("Settlement not found");
+    Object.assign(settlement, refreshed);
     if (settlement.status === "APPROVED") return settlement;
     if (!["REQUESTED", "FAILED"].includes(settlement.status)) {
       throw new ConflictError(`Settlement cannot be approved from status ${settlement.status}`);
@@ -304,6 +317,13 @@ export const markSellerSettlementPaidService = async (actorId, settlementId, ext
       include: { sellerOrder: { include: { order: true } } },
     });
     if (!settlement) throw new NotFoundError("Settlement not found");
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${settlement.sellerOrder.orderId} FOR UPDATE`;
+    const refreshed = await tx.sellerSettlement.findUnique({
+      where: { id: settlementId },
+      include: { sellerOrder: { include: { order: true } } },
+    });
+    if (!refreshed) throw new NotFoundError("Settlement not found");
+    Object.assign(settlement, refreshed);
     if (settlement.status === "PAID") return settlement;
     if (settlement.status !== "APPROVED") {
       throw new ConflictError("Only approved settlements can be marked paid");
