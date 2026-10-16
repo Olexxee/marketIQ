@@ -12,7 +12,6 @@ import {
 } from "../../config/paystack.js";
 import {
   commitSaleForOrderItem,
-  releaseReservationForOrderItem,
 } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
@@ -41,8 +40,6 @@ import {
   findPaymentsByOrderId,
   findPendingPaymentForOrder,
   updateManySellerOrderStatusByOrder,
-  updateOrderPaymentStatus,
-  updatePayment,
   withTransaction,
 } from "./payment.db.js";
 
