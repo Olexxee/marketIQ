@@ -35,7 +35,11 @@ export const paystackWebhook = async (req, res) => {
   const eventType = event?.event;
   const reference = event?.data?.reference;
 
-  if (!eventType || !reference) {
+  if (!eventType) {
+    return res.status(200).json({ success: true, ignored: true });
+  }
+  const isRefundEvent = eventType === "refund.processed" || eventType === "refund.failed";
+  if (isRefundEvent ? event?.data?.id == null : !reference) {
     return res.status(200).json({ success: true, ignored: true });
   }
 
