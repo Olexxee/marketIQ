@@ -1,5 +1,10 @@
 import { verifyWebhookSignature } from "../../config/paystack.js";
-import { handleChargeFailed, handleChargeSuccess } from "./payment.service.js";
+import {
+  handleChargeFailed,
+  handleChargeSuccess,
+  handleRefundFailed,
+  handleRefundProcessed,
+} from "./payment.service.js";
 
 /**
  * Paystack webhook receiver.
@@ -39,6 +44,16 @@ export const paystackWebhook = async (req, res) => {
       await handleChargeSuccess(reference, event);
     } else if (eventType === "charge.failed") {
       await handleChargeFailed(reference, event);
+    } else if (eventType === "refund.processed") {
+      const refundReference = event?.data?.id;
+      if (refundReference == null) return res.status(400).json({ success: false, message: "Invalid refund event" });
+      const result = await handleRefundProcessed(refundReference, event);
+      if (!result.handled) return res.status(500).json({ success: false });
+    } else if (eventType === "refund.failed") {
+      const refundReference = event?.data?.id;
+      if (refundReference == null) return res.status(400).json({ success: false, message: "Invalid refund event" });
+      const result = await handleRefundFailed(refundReference, event);
+      if (!result.handled) return res.status(500).json({ success: false });
     }
   } catch (err) {
     // Real infra failure → 5xx so Paystack retries
