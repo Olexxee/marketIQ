@@ -7,6 +7,7 @@ import {
   approveSellerSettlementService,
   markSellerSettlementPaidService,
   listDisputesService,
+  listPaymentReconciliationService,
   resolveDisputeService,
   reviewDisputeService,
 } from "./admin-operations.service.js";
@@ -77,4 +78,15 @@ export const markSellerSettlementPaid = asyncWrapper(async (req, res) => {
 export const retryRefundWithDetails = asyncWrapper(async (req, res) => {
   const refund = await retryRefundWithDetailsService(req.user.id, req.params.id, req.body);
   return successResponse({ res, statusCode: 200, message: "Refund retry submitted", data: refund });
+});
+
+export const listPaymentReconciliation = asyncWrapper(async (req, res) => {
+  const result = await listPaymentReconciliationService(req.query);
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Payment reconciliation items retrieved",
+    data: result.items,
+    meta: { page: result.page, limit: result.limit, total: result.total, totalPages: Math.ceil(result.total / result.limit) },
+  });
 });
