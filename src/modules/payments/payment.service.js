@@ -28,6 +28,7 @@ import {
   claimOrderPaymentSuccess,
   hasPendingPaymentForOrder,
   updatePaymentStatusIfPending,
+  updatePaymentStatusIfUnsettled,
   findBuyerEmail,
   findOrderItems,
   findOrderWithPaymentContext,
@@ -277,7 +278,7 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
     const payment = await findPaymentById(paymentId, tx);
     if (!payment || payment.status === "SUCCESS") return;
 
-    const updated = await updatePaymentStatusIfPending(
+    const updated = await updatePaymentStatusIfUnsettled(
       payment.id,
       "SUCCESS",
       tx,
@@ -330,6 +331,14 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
     }
 
     await recordPaymentCaptureLedger({ payment, orderId: payment.orderId }, tx);
+    await tx.auditLog.create({
+      data: {
+        action: "PAYMENT_CAPTURED",
+        resource: "Payment",
+        resourceId: payment.id,
+        metadata: { orderId: payment.orderId, amount: Number(payment.amount), currency: payment.currency, reference: payment.reference },
+      },
+    });
 
     const items = await findOrderItems(payment.orderId, tx);
     for (const item of lockSort(items)) {
@@ -367,6 +376,15 @@ const applyFailedPayment = async (paymentId, rawEvent) => {
       { providerPayload: rawEvent ?? undefined },
     );
     if (updated.count !== 1) return;
+
+    await tx.auditLog.create({
+      data: {
+        action: "PAYMENT_ATTEMPT_FAILED",
+        resource: "Payment",
+        resourceId: payment.id,
+        metadata: { orderId: payment.orderId, reference: payment.reference, reason: rawEvent?.data?.gateway_response || "Payment failed" },
+      },
+    });
 
     if (payment.orderId) {
       const anotherPendingPayment = await hasPendingPaymentForOrder(payment.orderId, tx);
