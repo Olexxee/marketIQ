@@ -62,6 +62,15 @@ const BUYER_DETAIL_INCLUDE = {
     },
   },
   items: true,
+  disputes: {
+    orderBy: { createdAt: "desc" },
+    include: {
+      evidence: {
+        orderBy: { createdAt: "asc" },
+        include: { submittedBy: { select: { id: true, fullName: true } } },
+      },
+    },
+  },
   payments: {
     orderBy: { createdAt: "desc" },
     select: {
@@ -112,6 +121,15 @@ const SELLER_ORDER_DETAIL_INCLUDE = {
       deliveryCityName: true,
       notes: true,
       createdAt: true,
+      disputes: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          evidence: {
+            orderBy: { createdAt: "asc" },
+            include: { submittedBy: { select: { id: true, fullName: true } } },
+          },
+        },
+      },
     },
   },
   items: true,
