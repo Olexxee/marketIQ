@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deriveOrderStatus } from "./order.status.service.js";
+import { getPaymentExpiryMinutes, calculatePaymentExpiresAt } from "./order.payment-policy.js";
 import {
   calculateCompletionDueAt,
   getAutoCompletionDays,
@@ -59,4 +60,19 @@ test("multi-seller completion accepts cancelled seller orders as resolved", () =
   assert.equal(areSellerOrdersResolved([{ status: "DELIVERED" }, { status: "CANCELLED" }]), true);
   assert.equal(areSellerOrdersResolved([{ status: "DELIVERED" }, { status: "PROCESSING" }]), false);
   assert.equal(areSellerOrdersResolved([]), false);
+});
+
+test("payment expiry minutes is constrained to 5 through 120", () => {
+  assert.equal(getPaymentExpiryMinutes("30"), 30);
+  assert.equal(getPaymentExpiryMinutes("5"), 5);
+  assert.equal(getPaymentExpiryMinutes("120"), 120);
+  for (const value of ["0", "121", "1.5", "invalid", ""]) {
+    assert.equal(getPaymentExpiryMinutes(value), 30);
+  }
+});
+
+test("payment expiry defaults to 30 minutes and calculates deadline", () => {
+  assert.equal(getPaymentExpiryMinutes(null), 30);
+  const now = new Date("2026-01-01T12:00:00.000Z");
+  assert.equal(calculatePaymentExpiresAt(now, 30).toISOString(), "2026-01-01T12:30:00.000Z");
 });
