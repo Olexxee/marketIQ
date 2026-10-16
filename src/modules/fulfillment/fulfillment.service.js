@@ -100,6 +100,10 @@ const validateWarehouseOwnership = async (warehouseId, sellerId, tx) => {
     throw new NotFoundError("Warehouse not found");
   }
 
+  if (!warehouse.isActive) {
+    throw new ConflictError("Warehouse is inactive");
+  }
+
   return warehouse;
 };
 
@@ -142,6 +146,10 @@ export const createFulfillmentService = async (
       throw new BadRequestError("Seller order has no items to fulfill");
     }
 
+    if (sellerOrder.fulfillments.length > 0) {
+      throw new ConflictError("This seller order already has a fulfillment");
+    }
+
     await validateWarehouseOwnership(warehouseId, sellerId, tx);
 
     const fulfillment = await createFulfillment(
@@ -171,8 +179,6 @@ export const createFulfillmentService = async (
 
     await syncSellerOrderStatusFromFulfillments(sellerOrderId, tx);
     await recalculateOrderStatus(sellerOrder.orderId, tx);
-        await syncSellerOrderStatusFromFulfillments(sellerOrderId, tx);
-        await recalculateOrderStatus(sellerOrder.orderId, tx);
 
         await publishEvent(
           {
@@ -277,10 +283,32 @@ export const updateFulfillmentService = async (sellerId, id, payload) => {
     const sellerOrderId = existing.sellerOrder.id;
 
     await syncSellerOrderStatusFromFulfillments(sellerOrderId, tx);
-    await recalculateOrderStatus(existing.sellerOrder.orderId, tx);
+    const orderStatus = await recalculateOrderStatus(existing.sellerOrder.orderId, tx);
 
-        await syncSellerOrderStatusFromFulfillments(sellerOrderId, tx);
-        await recalculateOrderStatus(existing.sellerOrder.orderId, tx);
+    if (status === "DELIVERED" && orderStatus === "DELIVERED") {
+      const config = await tx.businessConfig.findUnique({
+        where: { key: "FULFILLMENT_AUTO_COMPLETION_DAYS" },
+      });
+      const configuredDays = Number(
+        process.env.FULFILLMENT_AUTO_COMPLETION_DAYS ?? config?.value ?? 7,
+      );
+      const completionDays =
+        Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 90
+          ? configuredDays
+          : 7;
+      const completionDueAt = new Date();
+      completionDueAt.setDate(completionDueAt.getDate() + completionDays);
+
+      await tx.order.updateMany({
+        where: {
+          id: existing.sellerOrder.orderId,
+          status: "DELIVERED",
+          completionDueAt: null,
+          disputedAt: null,
+        },
+        data: { completionDueAt },
+      });
+    }
 
         // ✅ Publish status change event (Shipped or Delivered)
         if (status === "SHIPPED" || status === "DELIVERED") {

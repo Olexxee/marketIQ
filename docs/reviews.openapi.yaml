@@ -1,0 +1,163 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ Reviews API
+  version: 1.0.0
+  description: Product reviews with verified-purchase eligibility and moderation.
+tags:
+  - name: Reviews
+    description: Read approved product reviews and manage the authenticated buyer's reviews.
+paths:
+  /api/products/{productId}/reviews:
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Reviews]
+      summary: List approved reviews for an active product
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: Approved reviews and pagination metadata
+        '404':
+          description: Active product not found
+    post:
+      tags: [Reviews]
+      summary: Submit a review for a purchased variant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantId, rating, comment]
+              properties:
+                variantId: { type: string }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                title: { type: string, maxLength: 120 }
+                comment: { type: string, minLength: 10, maxLength: 3000 }
+      responses:
+        '201':
+          description: Review submitted for moderation
+        '401':
+          description: Authentication required
+        '403':
+          description: A delivered, successfully paid purchase is required
+        '409':
+          description: Review already exists for this variant
+  /api/products/{productId}/reviews/summary:
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Reviews]
+      summary: Get average rating and approved review count
+      responses:
+        '200':
+          description: Rating summary
+  /api/reviews/mine:
+    get:
+      tags: [Reviews]
+      summary: List the authenticated user's reviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: User's reviews and pagination metadata
+        '401':
+          description: Authentication required
+  /api/reviews/{reviewId}/moderation:
+    parameters:
+      - in: path
+        name: reviewId
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Reviews]
+      summary: Approve or reject a pending review (admin/staff)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [APPROVED, REJECTED] }
+      responses:
+        '200':
+          description: Review moderated
+        '403':
+          description: Admin or staff role required
+        '404':
+          description: Review not found
+        '409':
+          description: Review is not pending
+  /api/reviews/{reviewId}:
+    parameters:
+      - in: path
+        name: reviewId
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Reviews]
+      summary: Update the authenticated user's review
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                title: { type: string, nullable: true, maxLength: 120 }
+                comment: { type: string, nullable: true, minLength: 10, maxLength: 3000 }
+      responses:
+        '200':
+          description: Updated review returned to moderation
+        '403':
+          description: Not the review owner
+        '404':
+          description: Review not found
+    delete:
+      tags: [Reviews]
+      summary: Delete the authenticated user's review
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Review deleted
+        '403':
+          description: Not the review owner
+        '404':
+          description: Review not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

@@ -191,6 +191,7 @@ enum MarketActivityType {
   PRODUCT_UNFAVORITED
   PRODUCT_ADDED_TO_CART
   PRODUCT_REMOVED_FROM_CART
+  REVIEW_SUBMITTED
 
   // Sourcing
   SOURCING_REQUEST_CREATED
@@ -1138,6 +1139,11 @@ model Order {
 
   notes String?
 
+  // Completion policy: set when all seller shipments have been reported delivered.
+  completionDueAt DateTime?
+  disputedAt      DateTime?
+  disputeNotes    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1343,7 +1349,7 @@ model Fulfillment {
 
   items FulfillmentItem[]
 
-  @@index([sellerOrderId])
+  @@unique([sellerOrderId])
   @@index([warehouseId])
   @@index([status])
 }

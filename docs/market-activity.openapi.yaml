@@ -1,0 +1,159 @@
+openapi: 3.0.3
+info:
+  title: Market Activity API
+  version: 1.0.0
+  description: Privacy-minimal discovery event capture and restricted raw activity inspection.
+
+tags:
+  - name: Market Activity
+    description: Record marketplace discovery events and inspect raw activity for internal intelligence.
+
+paths:
+  /api/market-activity:
+    post:
+      tags: [Market Activity]
+      summary: Record a public discovery event
+      description: |
+        Accepts product views, product searches, category views, and seller views.
+        Actor identifiers, arbitrary metadata, and location identifiers are not accepted.
+        Product, category, and seller relationships are derived from active public records.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [activityType, productId]
+                  properties:
+                    activityType:
+                      type: string
+                      enum: [PRODUCT_VIEW]
+                    productId:
+                      type: string
+                - type: object
+                  required: [activityType, searchTerm]
+                  properties:
+                    activityType:
+                      type: string
+                      enum: [PRODUCT_SEARCH]
+                    searchTerm:
+                      type: string
+                      minLength: 1
+                      maxLength: 120
+                - type: object
+                  required: [activityType, categoryId]
+                  properties:
+                    activityType:
+                      type: string
+                      enum: [CATEGORY_VIEW]
+                    categoryId:
+                      type: string
+                - type: object
+                  required: [activityType, sellerId]
+                  properties:
+                    activityType:
+                      type: string
+                      enum: [SELLER_VIEW]
+                    sellerId:
+                      type: string
+      responses:
+        "201":
+          description: Discovery event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          description: Invalid event payload
+        "404":
+          description: Target product, category, or seller is not publicly available
+        "429":
+          description: Event capture rate limit exceeded
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags: [Market Activity]
+      summary: List raw market activity events
+      description: Restricted to ADMIN and STAFF accounts.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: activityType
+          schema:
+            type: string
+            enum:
+              - PRODUCT_VIEW
+              - PRODUCT_SEARCH
+              - CATEGORY_VIEW
+              - SELLER_VIEW
+              - PRODUCT_FAVORITED
+              - PRODUCT_UNFAVORITED
+              - PRODUCT_ADDED_TO_CART
+              - PRODUCT_REMOVED_FROM_CART
+              - SOURCING_REQUEST_CREATED
+              - SOURCING_RESPONSE_SUBMITTED
+              - ORDER_CREATED
+              - ORDER_CANCELLED
+              - ORDER_COMPLETED
+              - PAYMENT_COMPLETED
+              - PAYMENT_FAILED
+              - FULFILLMENT_CREATED
+              - FULFILLMENT_SHIPPED
+              - FULFILLMENT_DELIVERED
+              - INVENTORY_STOCKED_IN
+              - INVENTORY_ADJUSTED
+              - INVENTORY_RESERVED
+              - INVENTORY_RELEASED
+              - INVENTORY_COMMITTED
+        - in: query
+          name: productId
+          schema: { type: string }
+        - in: query
+          name: sellerId
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: countryId
+          schema: { type: string }
+        - in: query
+          name: stateId
+          schema: { type: string }
+        - in: query
+          name: lgaId
+          schema: { type: string }
+        - in: query
+          name: cityId
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Paginated raw activity events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

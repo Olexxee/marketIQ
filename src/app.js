@@ -41,6 +41,13 @@ import {
 } from "./modules/variants/variant.seller.routes.js";
 
 import inventoryRouter from "./modules/inventory/inventory.routes.js";
+import marketActivityRouter from "./modules/market-activity/marketActivity.routes.js";
+import wishlistRouter from "./modules/wishlist/wishlist.routes.js";
+import reviewRouter from "./modules/reviews/review.routes.js";
+import {
+  fulfillmentFlatRouter,
+  fulfillmentNestedRouter,
+} from "./modules/fulfillment/fulfillment.routes.js";
 
 // ============================================================
 // SWAGGER
@@ -137,6 +144,7 @@ app.use("/api/checkout", paymentRouter)
 // router, otherwise Express matches "/:id" first.
 // ------------------------------------------------------------
 app.use("/api/products/:productId/variants", variantPublicRouter);
+app.use("/api", reviewRouter);
 app.use("/api/products", productRouter);
 
 // ------------------------------------------------------------
@@ -147,6 +155,10 @@ app.use("/api/seller/products/:productId/variants", variantNestedRouter);
 app.use("/api/seller/products", productSellerRouter);
 app.use("/api/seller/variants", variantFlatRouter);
 app.use("/api/seller/inventory", inventoryRouter);
+app.use("/api/seller/orders/:id/fulfillments", fulfillmentNestedRouter);
+app.use("/api/seller/fulfillments", fulfillmentFlatRouter);
+app.use("/api/market-activity", marketActivityRouter);
+app.use("/api/wishlist", wishlistRouter);
 
 // ============================================================
 // ERROR HANDLER (must be last)

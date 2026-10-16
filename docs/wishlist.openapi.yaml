@@ -1,0 +1,74 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ Wishlist API
+  version: 1.0.0
+  description: Authenticated buyer wishlist endpoints.
+tags:
+  - name: Wishlist
+    description: Save and manage products for later.
+paths:
+  /api/wishlist:
+    get:
+      tags: [Wishlist]
+      summary: List the authenticated user's saved products
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wishlist retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WishlistItem'
+        '401':
+          description: Authentication required
+  /api/wishlist/{productId}:
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Wishlist]
+      summary: Save an active product to the authenticated user's wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Product saved to wishlist
+        '200':
+          description: Product was already saved
+        '404':
+          description: Active product not found
+    delete:
+      tags: [Wishlist]
+      summary: Remove a product from the authenticated user's wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Product removed, or was not present
+components:
+  schemas:
+    WishlistItem:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        productId: { type: string }
+        variantId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        product:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+            status: { type: string }
