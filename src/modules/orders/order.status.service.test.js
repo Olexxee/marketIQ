@@ -37,7 +37,7 @@ test("all-cancelled parent order remains cancelled", () => {
 
 test("auto-completion days accepts integers from 1 through 90", () => {
   assert.equal(getAutoCompletionDays({ envValue: "14", configValue: 7 }), 14);
-  assert.equal(getAutoCompletionDays({ envValue: undefined, configValue: 30 }), 30);
+  assert.equal(getAutoCompletionDays({ envValue: null, configValue: 30 }), 30);
 });
 
 test("auto-completion days falls back for invalid values", () => {
