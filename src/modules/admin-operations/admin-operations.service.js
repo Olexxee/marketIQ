@@ -156,6 +156,35 @@ export const resolveDisputeService = async (actorId, disputeId, { resolution, re
 
 
 // ============================================================
+// PAYMENT RECONCILIATION
+// ============================================================
+
+export const listPaymentReconciliationService = async ({ page = 1, limit = 20 } = {}) => {
+  const where = {
+    providerPayload: {
+      path: ["reconciliationRequired"],
+      equals: true,
+    },
+  };
+  const [items, total] = await Promise.all([
+    prisma.payment.findMany({
+      where,
+      include: {
+        order: {
+          select: { id: true, orderNumber: true, status: true, paymentStatus: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.payment.count({ where }),
+  ]);
+  return { items, total, page, limit };
+};
+
+
+// ============================================================
 // SELLER SETTLEMENTS (manual payout reconciliation)
 // ============================================================
 
