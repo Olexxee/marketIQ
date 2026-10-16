@@ -29,6 +29,7 @@ import {
   updateRefundStatusIfProcessing,
   claimOrderPaymentSuccess,
   hasPendingPaymentForOrder,
+  updatePayment,
   updatePaymentStatusIfPending,
   updatePaymentStatusIfUnsettled,
   extendOrderPaymentExpiry,
