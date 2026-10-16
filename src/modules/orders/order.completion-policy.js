@@ -10,3 +10,9 @@ export const getAutoCompletionDays = ({
 export const calculateCompletionDueAt = (now = new Date(), days = getAutoCompletionDays()) => {
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 };
+
+export const areSellerOrdersResolved = (sellerOrders) => {
+  return sellerOrders.length > 0 && sellerOrders.every((sellerOrder) =>
+    ["DELIVERED", "COMPLETED", "CANCELLED"].includes(sellerOrder.status),
+  );
+};
