@@ -6,6 +6,8 @@ import {
   cancelBuyerOrderService,
   confirmBuyerOrderService,
   disputeBuyerOrderService,
+  submitBuyerDisputeEvidenceService,
+  submitSellerDisputeEvidenceService,
   getBuyerOrderService,
   getSellerOrderService,
   listBuyerOrdersService,
@@ -131,5 +133,34 @@ export const disputeBuyerOrder = asyncWrapper(async (req, res) => {
     statusCode: 200,
     message: "Order dispute submitted successfully",
     data: order,
+  });
+});
+
+export const submitBuyerDisputeEvidence = asyncWrapper(async (req, res) => {
+  const evidence = await submitBuyerDisputeEvidenceService(
+    req.user.id,
+    req.params.id,
+    req.body,
+  );
+  return successResponse({
+    res,
+    statusCode: 201,
+    message: "Dispute evidence submitted successfully",
+    data: evidence,
+  });
+});
+
+export const submitSellerDisputeEvidence = asyncWrapper(async (req, res) => {
+  const evidence = await submitSellerDisputeEvidenceService(
+    req.user.id,
+    req.seller.id,
+    req.params.id,
+    req.body,
+  );
+  return successResponse({
+    res,
+    statusCode: 201,
+    message: "Dispute evidence submitted successfully",
+    data: evidence,
   });
 });
