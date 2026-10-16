@@ -3,6 +3,7 @@ import {
   markEventCompleted,
   markEventFailed,
   markEventProcessing,
+  recoverStaleProcessingEvents,
 } from "./event.db.js";
 import { dispatchEvent } from "./event.dispatcher.js";
 import { getRetryDate } from "./event.retry.js";
@@ -23,11 +24,12 @@ const processEvent = async (event) => {
   } catch (error) {
     const retryAt = getRetryDate(event.attempts + 1);
 
-    await markEventFailed(event.id, error, retryAt);
+    await markEventFailed(event.id, error, retryAt, event.attempts + 1 >= 10);
   }
 };
 
 export const processOutboxEvents = async () => {
+  await recoverStaleProcessingEvents();
   const events = await findPendingOutboxEvents(BATCH_SIZE);
 
   for (const event of events) {
