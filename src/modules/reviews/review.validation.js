@@ -20,6 +20,10 @@ export const updateReviewBodySchema = z.object({
   "At least one review field must be supplied",
 );
 
+export const reviewModerationBodySchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED"]),
+}).strict();
+
 export const reviewListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(10),
