@@ -16,7 +16,7 @@ test("auto-completion days falls back safely for invalid configuration", () => {
   for (const value of ["0", "-1", "91", "1.5", "abc", ""]) {
     assert.equal(getAutoCompletionDays({ envValue: value, configValue: 12 }), 7);
   }
-  assert.equal(getAutoCompletionDays({ envValue: undefined, configValue: 12 }), 12);
+  assert.equal(getAutoCompletionDays({ envValue: null, configValue: 12 }), 12);
 });
 
 test("completion deadline uses the configured number of full days", () => {
