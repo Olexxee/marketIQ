@@ -15,7 +15,7 @@ import {
   findSellerOrderById,
   findSellerOrders,
   findSellerOrdersByOrderId,
-  updateManySellerOrderStatus,
+  completeDeliveredSellerOrders,
   updateSellerOrderStatus,
   withTransaction,
 } from "./order.db.js";
@@ -154,7 +154,10 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
     }
 
     const allResolved = sellerOrders.every(
-      (so) => so.status === "DELIVERED" || so.status === "COMPLETED",
+      (so) =>
+        so.status === "DELIVERED" ||
+        so.status === "COMPLETED" ||
+        so.status === "CANCELLED",
     );
 
     if (!allResolved) {
@@ -167,7 +170,7 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
       throw new ConflictError("Order must be delivered before confirmation");
     }
 
-    await updateManySellerOrderStatus(orderId, "COMPLETED", tx);
+    await completeDeliveredSellerOrders(orderId, tx);
     await tx.order.update({
       where: { id: orderId },
       data: { completionDueAt: null },
