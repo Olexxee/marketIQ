@@ -139,6 +139,14 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
       throw new NotFoundError("Order not found");
     }
 
+    if (order.disputedAt) {
+      throw new ConflictError("This order is disputed and cannot be completed");
+    }
+
+    if (order.status === "COMPLETED") {
+      return findBuyerOrderById(orderId, userId, tx);
+    }
+
     const sellerOrders = await findSellerOrdersByOrderId(orderId, tx);
 
     if (!sellerOrders.length) {
@@ -155,8 +163,55 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
       );
     }
 
+    if (order.status !== "DELIVERED") {
+      throw new ConflictError("Order must be delivered before confirmation");
+    }
+
     await updateManySellerOrderStatus(orderId, "COMPLETED", tx);
+    await tx.order.update({
+      where: { id: orderId },
+      data: { completionDueAt: null },
+    });
     await recalculateOrderStatus(orderId, tx);
+
+    await publishEvent(
+      {
+        eventType: EVENT_TYPES.ORDER_COMPLETED,
+        aggregateType: "ORDER",
+        aggregateId: orderId,
+        payload: { orderId, completedBy: "BUYER" },
+      },
+      tx,
+    );
+
+    return findBuyerOrderById(orderId, userId, tx);
+  });
+};
+
+export const disputeBuyerOrderService = async (userId, orderId, notes) => {
+  return withTransaction(async (tx) => {
+    const order = await findOrderById(orderId, tx);
+
+    if (!order || order.buyerId !== userId) {
+      throw new NotFoundError("Order not found");
+    }
+
+    if (order.status !== "DELIVERED") {
+      throw new ConflictError("Only delivered orders can be disputed");
+    }
+
+    if (order.disputedAt) {
+      throw new ConflictError("This order is already disputed");
+    }
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        disputedAt: new Date(),
+        disputeNotes: notes,
+        completionDueAt: null,
+      },
+    });
 
     return findBuyerOrderById(orderId, userId, tx);
   });
@@ -201,6 +256,12 @@ export const updateSellerOrderStatusService = async (
 
     if (!sellerOrder) {
       throw new NotFoundError("Seller order not found");
+    }
+
+    if (nextStatus === "DELIVERED") {
+      throw new ConflictError(
+        "Report delivery through the fulfillment endpoint; sellers cannot directly mark orders delivered",
+      );
     }
 
     const allowed = SELLER_TRANSITIONS[sellerOrder.status] || [];
