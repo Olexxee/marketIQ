@@ -54,4 +54,4 @@ Base path: `/api/admin/operations`. Dispute review supports ADMIN and STAFF; dis
 
 ## Verification status
 
-CI runs Prisma validation, client generation, and unit tests. A real PostgreSQL migration and Paystack test-mode smoke test are still required before production rollout.
+CI is configured to run Prisma validation, client generation, and unit tests; the current run has not been verified from this environment. A real PostgreSQL migration and Paystack test-mode smoke test are still required before production rollout.
