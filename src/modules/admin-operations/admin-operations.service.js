@@ -36,11 +36,19 @@ export const getDisputeService = async (id) => {
             include: { seller: { select: { id: true, businessName: true } }, items: true, fulfillments: true },
           },
           payments: { select: { id: true, reference: true, status: true, amount: true, currency: true, createdAt: true } },
+          disputes: {
+            where: { id: { not: undefined } },
+            select: { id: true },
+          },
         },
       },
       openedBy: { select: { id: true, fullName: true, email: true } },
       assignedTo: { select: { id: true, fullName: true, email: true } },
       resolvedBy: { select: { id: true, fullName: true, email: true } },
+      evidence: {
+        orderBy: { createdAt: "asc" },
+        include: { submittedBy: { select: { id: true, fullName: true, email: true } } },
+      },
     },
   });
   if (!dispute) throw new NotFoundError("Dispute not found");
