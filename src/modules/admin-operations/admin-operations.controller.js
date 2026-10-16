@@ -14,6 +14,7 @@ import {
   listRefundsService,
   processRefundService,
   requestRefundService,
+  retryRefundWithDetailsService,
 } from "../payments/payment.service.js";
 
 export const listDisputes = asyncWrapper(async (req, res) => {
@@ -70,4 +71,10 @@ export const approveSellerSettlement = asyncWrapper(async (req, res) => {
 export const markSellerSettlementPaid = asyncWrapper(async (req, res) => {
   const settlement = await markSellerSettlementPaidService(req.user.id, req.params.id, req.body.externalReference);
   return successResponse({ res, statusCode: 200, message: "Seller settlement marked paid", data: settlement });
+});
+
+
+export const retryRefundWithDetails = asyncWrapper(async (req, res) => {
+  const refund = await retryRefundWithDetailsService(req.user.id, req.params.id, req.body);
+  return successResponse({ res, statusCode: 200, message: "Refund retry submitted", data: refund });
 });
