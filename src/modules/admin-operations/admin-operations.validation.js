@@ -57,3 +57,12 @@ export const retryRefundSchema = z.object({
   accountNumber: z.string().regex(/^\d{10}$/),
   bankId: z.string().trim().min(1).max(50),
 });
+
+export const settlementRequestSchema = z.object({
+  amount: z.coerce.number().positive().optional(),
+  adjustmentReason: z.string().trim().min(5).max(500).optional(),
+}).superRefine((value, ctx) => {
+  if (value.amount !== undefined && !value.adjustmentReason) {
+    ctx.addIssue({ code: "custom", path: ["adjustmentReason"], message: "adjustmentReason is required when overriding the settlement amount" });
+  }
+});
