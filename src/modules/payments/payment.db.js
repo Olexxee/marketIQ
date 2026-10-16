@@ -153,3 +153,11 @@ export const extendOrderPaymentExpiry = async (orderId, expiresAt, tx) => {
     data: { paymentExpiresAt: expiresAt },
   });
 };
+
+
+export const findProcessingRefundsForPayment = async (paymentId, tx) => {
+  return dbClient(tx).refund.findMany({
+    where: { paymentId, status: "PROCESSING" },
+    orderBy: { createdAt: "asc" },
+  });
+};
