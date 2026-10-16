@@ -71,3 +71,15 @@ export const verifyWebhookSignature = (rawBody, signature) => {
 
   return crypto.timingSafeEqual(a, b);
 };
+
+export const initiateRefund = async ({ transaction, amountKobo, reason, merchantNote }) => {
+  return paystackRequest("/refund", {
+    method: "POST",
+    body: {
+      transaction,
+      amount: amountKobo,
+      customer_note: reason,
+      merchant_note: merchantNote,
+    },
+  });
+};
