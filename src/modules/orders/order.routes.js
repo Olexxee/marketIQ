@@ -3,6 +3,7 @@ import {
   cancelBuyerOrder,
   confirmBuyerOrder,
   disputeBuyerOrder,
+  submitBuyerDisputeEvidence,
   getBuyerOrder,
   listBuyerOrders,
 } from "./order.controller.js";
@@ -10,6 +11,7 @@ import {
   buyerOrderQuerySchema,
   cancelOrderSchema,
   disputeOrderSchema,
+  disputeEvidenceSchema,
   orderIdParamSchema,
 } from "./order.validation.js";
 import {
@@ -50,3 +52,10 @@ orderRouter.post(
 );
 
 export default orderRouter;
+
+orderRouter.post(
+  "/:id/dispute/evidence",
+  validateParams(orderIdParamSchema),
+  validateBody(disputeEvidenceSchema),
+  submitBuyerDisputeEvidence,
+);
