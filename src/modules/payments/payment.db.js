@@ -135,7 +135,7 @@ export const listRefunds = async ({ status, skip, take } = {}, tx) => {
 
 export const getRefundExposureForPayment = async (paymentId, tx) => {
   return dbClient(tx).refund.aggregate({
-    where: { paymentId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "SUCCEEDED"] } },
+    where: { paymentId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION", "SUCCEEDED"] } },
     _sum: { amount: true },
   });
 };
