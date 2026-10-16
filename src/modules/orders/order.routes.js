@@ -42,11 +42,11 @@ orderRouter.post(
   confirmBuyerOrder,
 );
 
-export default orderRouter;
-
 orderRouter.post(
   "/:id/dispute",
   validateParams(orderIdParamSchema),
   validateBody(disputeOrderSchema),
   disputeBuyerOrder,
 );
+
+export default orderRouter;
