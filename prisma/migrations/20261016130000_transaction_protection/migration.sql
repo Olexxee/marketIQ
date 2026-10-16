@@ -7,6 +7,13 @@ CREATE TYPE "LedgerAccount" AS ENUM ('PAYMENT_CLEARING', 'SELLER_PAYABLE', 'PLAT
 CREATE TYPE "LedgerDirection" AS ENUM ('DEBIT', 'CREDIT');
 CREATE TYPE "SettlementStatus" AS ENUM ('REQUESTED', 'APPROVED', 'PROCESSING', 'PAID', 'FAILED', 'CANCELLED');
 
+ALTER TABLE "Order" ADD COLUMN "paymentExpiresAt" TIMESTAMP(3);
+UPDATE "Order"
+SET "paymentExpiresAt" = "createdAt" + INTERVAL '30 minutes'
+WHERE "status" = 'PENDING'
+  AND "paymentStatus" IN ('PENDING', 'FAILED')
+  AND "paymentExpiresAt" IS NULL;
+
 CREATE TABLE "Dispute" (
   "id" TEXT NOT NULL,
   "orderId" TEXT NOT NULL,
