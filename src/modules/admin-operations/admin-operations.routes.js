@@ -1,0 +1,36 @@
+import { Router } from "express";
+import { authenticate } from "../../middlewares/authenticate.js";
+import { authorize } from "../../middlewares/authorize.js";
+import { validateBody, validateParams, validateQuery } from "../../middlewares/validateMiddleware.js";
+import {
+  disputeIdParamSchema,
+  disputeListQuerySchema,
+  orderIdParamSchema,
+  refundIdParamSchema,
+  refundListQuerySchema,
+  refundRequestSchema,
+  resolveDisputeSchema,
+} from "./admin-operations.validation.js";
+import {
+  getDispute,
+  listDisputes,
+  listRefunds,
+  processRefund,
+  requestRefund,
+  resolveDispute,
+  reviewDispute,
+} from "./admin-operations.controller.js";
+
+const router = Router();
+router.use(authenticate);
+
+router.get("/disputes", authorize("ADMIN", "STAFF"), validateQuery(disputeListQuerySchema), listDisputes);
+router.get("/disputes/:id", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), getDispute);
+router.post("/disputes/:id/review", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), reviewDispute);
+router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeIdParamSchema), validateBody(resolveDisputeSchema), resolveDispute);
+
+router.get("/refunds", authorize("ADMIN"), validateQuery(refundListQuerySchema), listRefunds);
+router.post("/orders/:orderId/refunds", authorize("ADMIN"), validateParams(orderIdParamSchema), validateBody(refundRequestSchema), requestRefund);
+router.post("/refunds/:id/process", authorize("ADMIN"), validateParams(refundIdParamSchema), processRefund);
+
+export default router;
