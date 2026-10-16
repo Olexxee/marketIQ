@@ -15,6 +15,7 @@ import {
   settlementIdParamSchema,
   settlementListQuerySchema,
   settlementPaidSchema,
+  settlementRequestSchema,
   resolveDisputeSchema,
 } from "./admin-operations.validation.js";
 import {
@@ -46,7 +47,7 @@ router.post("/refunds/:id/process", authorize("ADMIN"), validateParams(refundIdP
 router.post("/refunds/:id/retry", authorize("ADMIN"), validateParams(retryRefundParamSchema), validateBody(retryRefundSchema), retryRefundWithDetails);
 
 router.get("/settlements", authorize("ADMIN"), validateQuery(settlementListQuerySchema), listSettlements);
-router.post("/seller-orders/:sellerOrderId/settlements", authorize("ADMIN"), validateParams(sellerOrderIdParamSchema), requestSellerSettlement);
+router.post("/seller-orders/:sellerOrderId/settlements", authorize("ADMIN"), validateParams(sellerOrderIdParamSchema), validateBody(settlementRequestSchema), requestSellerSettlement);
 router.post("/settlements/:id/approve", authorize("ADMIN"), validateParams(settlementIdParamSchema), approveSellerSettlement);
 router.post("/settlements/:id/mark-paid", authorize("ADMIN"), validateParams(settlementIdParamSchema), validateBody(settlementPaidSchema), markSellerSettlementPaid);
 
