@@ -17,6 +17,7 @@ import {
   settlementPaidSchema,
   settlementRequestSchema,
   resolveDisputeSchema,
+  paymentReconciliationListQuerySchema,
 } from "./admin-operations.validation.js";
 import {
   getDispute,
@@ -31,6 +32,7 @@ import {
   requestRefund,
   resolveDispute,
   reviewDispute,
+  listPaymentReconciliation,
 } from "./admin-operations.controller.js";
 
 const router = Router();
@@ -41,6 +43,7 @@ router.get("/disputes/:id", authorize("ADMIN", "STAFF"), validateParams(disputeI
 router.post("/disputes/:id/review", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), reviewDispute);
 router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeIdParamSchema), validateBody(resolveDisputeSchema), resolveDispute);
 
+router.get("/payment-reconciliation", authorize("ADMIN"), validateQuery(paymentReconciliationListQuerySchema), listPaymentReconciliation);
 router.get("/refunds", authorize("ADMIN"), validateQuery(refundListQuerySchema), listRefunds);
 router.post("/orders/:orderId/refunds", authorize("ADMIN"), validateParams(orderIdParamSchema), validateBody(refundRequestSchema), requestRefund);
 router.post("/refunds/:id/process", authorize("ADMIN"), validateParams(refundIdParamSchema), processRefund);
