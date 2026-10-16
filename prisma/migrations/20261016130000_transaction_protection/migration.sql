@@ -76,6 +76,7 @@ CREATE TABLE "SellerSettlement" (
   "currency" TEXT NOT NULL DEFAULT 'NGN',
   "status" "SettlementStatus" NOT NULL DEFAULT 'REQUESTED',
   "externalReference" TEXT,
+  "adjustmentReason" TEXT,
   "failureReason" TEXT,
   "paidAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
