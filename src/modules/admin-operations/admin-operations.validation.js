@@ -71,3 +71,8 @@ export const paymentReconciliationListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+export const paymentReconciliationResolveSchema = z.object({
+  resolution: z.enum(["CONFIRMED_PAYMENT", "CONFIRMED_NO_CHARGE", "REFUND_INITIATED", "OTHER"]),
+  notes: z.string().trim().min(5).max(1000),
+});
