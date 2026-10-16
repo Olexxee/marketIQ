@@ -219,6 +219,9 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId, { a
     if (!Number.isFinite(settlementAmount) || settlementAmount <= 0 || settlementAmount > Number(sellerOrder.total)) {
       throw new ConflictError("Settlement amount must be positive and cannot exceed the seller order total");
     }
+    if (hasSucceededRefund && (amount === undefined || settlementAmount >= Number(sellerOrder.total))) {
+      throw new ConflictError("A processed refund requires an explicitly reduced settlement amount");
+    }
     if ((hasSucceededRefund || settlementAmount < Number(sellerOrder.total)) && !adjustmentReason?.trim()) {
       throw new ConflictError("An adjustmentReason is required when settlement amount differs from the seller order total or refunds have been processed");
     }
