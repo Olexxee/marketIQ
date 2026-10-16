@@ -90,6 +90,49 @@ enum PaymentStatus {
   REVERSED
 }
 
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeResolution {
+  REFUND_FULL
+  REFUND_PARTIAL
+  RELEASE_PAYMENT
+  NO_ACTION
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REJECTED
+}
+
+enum LedgerTransactionType {
+  PAYMENT_CAPTURE
+  REFUND
+  SELLER_SETTLEMENT
+  PLATFORM_FEE
+  ADJUSTMENT
+}
+
+enum LedgerAccount {
+  PAYMENT_CLEARING
+  SELLER_PAYABLE
+  PLATFORM_REVENUE
+  BUYER_REFUND
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
 enum PaymentProvider {
   PAYSTACK
 }
@@ -395,6 +438,11 @@ model User {
   notifications          Notification[]
   notificationPreference NotificationPreference?
   auditLogs              AuditLog[]
+  disputesOpened         Dispute[] @relation("DisputeOpenedBy")
+  disputesAssigned       Dispute[] @relation("DisputeAssignedTo")
+  disputesResolved       Dispute[] @relation("DisputeResolvedBy")
+  refundsRequested       Refund[] @relation("RefundRequestedBy")
+  refundsReviewed        Refund[] @relation("RefundReviewedBy")
 
   sourcingRequests  SourcingRequest[]
   sourcingResponses SourcingResponse[]
@@ -1161,6 +1209,9 @@ model Order {
   items        OrderItem[]
   payments     Payment[]
   reviews      Review[]
+  disputes     Dispute[]
+  refunds      Refund[]
+  ledgerTransactions LedgerTransaction[]
 
   @@index([buyerId])
   @@index([type])
@@ -1198,6 +1249,7 @@ model SellerOrder {
 
   items        OrderItem[]
   fulfillments Fulfillment[]
+  ledgerEntries LedgerEntry[]
 
   @@unique([orderId, sellerId])
   @@index([sellerId])
@@ -1272,6 +1324,8 @@ model Payment {
   updatedAt DateTime @updatedAt
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  refunds Refund[]
+  ledgerTransactions LedgerTransaction[]
 
   @@index([orderId])
   @@index([status])
@@ -1496,6 +1550,112 @@ model NotificationPreference {
 // ============================================================
 // AUDIT
 // ============================================================
+
+
+model Dispute {
+  id String @id @default(cuid())
+
+  orderId String
+  openedById String?
+  assignedToId String?
+  resolvedById String?
+
+  status DisputeStatus @default(OPEN)
+  reason String
+  resolution DisputeResolution?
+  resolutionNotes String?
+
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  openedBy User? @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("DisputeAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("DisputeResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+  @@index([assignedToId, status])
+}
+
+model Refund {
+  id String @id @default(cuid())
+
+  orderId String
+  paymentId String
+  requestedById String?
+  reviewedById String?
+
+  amount Decimal @db.Decimal(12, 2)
+  currency String @default("NGN")
+  reason String
+  status RefundStatus @default(REQUESTED)
+
+  idempotencyKey String @unique
+  providerReference String? @unique
+  failureReason String?
+  providerPayload Json?
+
+  reviewedAt DateTime?
+  processedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  requestedBy User? @relation("RefundRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  reviewedBy User? @relation("RefundReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  ledgerTransaction LedgerTransaction?
+
+  @@index([orderId, createdAt])
+  @@index([paymentId, status])
+  @@index([status, createdAt])
+}
+
+model LedgerTransaction {
+  id String @id @default(cuid())
+
+  type LedgerTransactionType
+  idempotencyKey String @unique
+  reference String @unique
+  orderId String?
+  paymentId String?
+  refundId String? @unique
+
+  amount Decimal @db.Decimal(12, 2)
+  currency String @default("NGN")
+  metadata Json?
+  createdAt DateTime @default(now())
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refund Refund? @relation(fields: [refundId], references: [id], onDelete: SetNull)
+  entries LedgerEntry[]
+
+  @@index([orderId, createdAt])
+  @@index([paymentId, createdAt])
+  @@index([type, createdAt])
+}
+
+model LedgerEntry {
+  id String @id @default(cuid())
+
+  transactionId String
+  sellerOrderId String?
+  account LedgerAccount
+  direction LedgerDirection
+  amount Decimal @db.Decimal(12, 2)
+  currency String @default("NGN")
+  createdAt DateTime @default(now())
+
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  sellerOrder SellerOrder? @relation(fields: [sellerOrderId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([sellerOrderId, account, createdAt])
+  @@index([account, createdAt])
+}
 
 model AuditLog {
   id String @id @default(cuid())
