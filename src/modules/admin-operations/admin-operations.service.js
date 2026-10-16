@@ -198,7 +198,11 @@ export const resolvePaymentReconciliationService = async (actorId, paymentId, { 
 
     const now = new Date();
     const updated = await tx.payment.updateMany({
-      where: { id: paymentId, status: payment.status },
+      where: {
+        id: paymentId,
+        status: payment.status,
+        providerPayload: { path: ["reconciliationRequired"], equals: true },
+      },
       data: {
         providerPayload: {
           ...payload,
