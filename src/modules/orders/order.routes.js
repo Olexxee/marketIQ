@@ -2,12 +2,14 @@ import { Router } from "express";
 import {
   cancelBuyerOrder,
   confirmBuyerOrder,
+  disputeBuyerOrder,
   getBuyerOrder,
   listBuyerOrders,
 } from "./order.controller.js";
 import {
   buyerOrderQuerySchema,
   cancelOrderSchema,
+  disputeOrderSchema,
   orderIdParamSchema,
 } from "./order.validation.js";
 import {
@@ -41,3 +43,10 @@ orderRouter.post(
 );
 
 export default orderRouter;
+
+orderRouter.post(
+  "/:id/dispute",
+  validateParams(orderIdParamSchema),
+  validateBody(disputeOrderSchema),
+  disputeBuyerOrder,
+);
