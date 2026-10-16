@@ -3,7 +3,7 @@ import {
   getMarketActivitiesController,
   recordMarketActivityController,
 } from "./marketActivity.controller.js";
-import { asyncWrapper } from "../../middlewares/asyncWrapper.js";
+import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 
 
