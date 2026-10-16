@@ -104,6 +104,15 @@ enum DisputeResolution {
   NO_ACTION
 }
 
+enum DisputeEvidenceType {
+  NOTE
+  IMAGE
+  DOCUMENT
+  DELIVERY_PROOF
+  COMMUNICATION
+  OTHER
+}
+
 enum RefundStatus {
   REQUESTED
   APPROVED
@@ -451,6 +460,7 @@ model User {
   disputesOpened         Dispute[] @relation("DisputeOpenedBy")
   disputesAssigned       Dispute[] @relation("DisputeAssignedTo")
   disputesResolved       Dispute[] @relation("DisputeResolvedBy")
+  disputeEvidence        DisputeEvidence[] @relation("DisputeEvidenceSubmittedBy")
   refundsRequested       Refund[] @relation("RefundRequestedBy")
   refundsReviewed        Refund[] @relation("RefundReviewedBy")
   settlementsRequested   SellerSettlement[] @relation("SettlementRequestedBy")
@@ -1587,10 +1597,30 @@ model Dispute {
   openedBy User? @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   assignedTo User? @relation("DisputeAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   resolvedBy User? @relation("DisputeResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  evidence DisputeEvidence[]
 
   @@index([orderId, createdAt])
   @@index([status, createdAt])
   @@index([assignedToId, status])
+}
+
+model DisputeEvidence {
+  id String @id @default(cuid())
+
+  disputeId String
+  submittedById String?
+  type DisputeEvidenceType @default(NOTE)
+  description String
+  url String?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  submittedBy User? @relation("DisputeEvidenceSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@index([disputeId, createdAt])
+  @@index([submittedById, createdAt])
 }
 
 model Refund {
