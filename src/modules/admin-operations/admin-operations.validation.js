@@ -36,3 +36,15 @@ export const refundListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+
+export const sellerOrderIdParamSchema = z.object({ sellerOrderId: cuid });
+export const settlementIdParamSchema = z.object({ id: cuid });
+export const settlementPaidSchema = z.object({
+  externalReference: z.string().trim().min(3).max(120),
+});
+export const settlementListQuerySchema = z.object({
+  status: z.enum(["REQUESTED", "APPROVED", "PROCESSING", "PAID", "FAILED", "CANCELLED"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
