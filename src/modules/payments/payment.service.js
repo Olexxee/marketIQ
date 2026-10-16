@@ -489,7 +489,7 @@ export const requestRefundService = async (actorId, {
     }
 
     const paidSettlements = await tx.sellerSettlement.count({
-      where: { sellerOrder: { orderId }, status: "PAID" },
+      where: { sellerOrder: { is: { orderId } }, status: "PAID" },
     });
     if (paidSettlements > 0) {
       throw new ConflictError("A seller settlement has already been paid; finance must record a recovery plan before refunding");
