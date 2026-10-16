@@ -459,7 +459,16 @@ export const requestRefundService = async (actorId, {
 }) => {
   return withTransaction(async (tx) => {
     const existing = await tx.refund.findUnique({ where: { idempotencyKey } });
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.orderId !== orderId ||
+        (paymentId && existing.paymentId !== paymentId) ||
+        (amount !== undefined && amount !== null && Number(existing.amount) !== Number(amount))
+      ) {
+        throw new ConflictError("Idempotency key was already used for a different refund request");
+      }
+      return existing;
+    }
 
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundError("Order not found");
@@ -472,6 +481,8 @@ export const requestRefundService = async (actorId, {
         });
     if (!payment) throw new ConflictError("No successful payment is available to refund");
 
+    // Serialize refundable-balance checks for this payment to prevent concurrent over-refunds.
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`;
     const exposure = await getRefundExposureForPayment(payment.id, tx);
     const reserved = Number(exposure._sum.amount ?? 0);
     const available = Math.max(0, Number(payment.amount) - reserved);
