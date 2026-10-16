@@ -2,6 +2,7 @@ import prisma from "../../config/prisma.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { recalculateOrderStatus } from "./order.status.service.js";
+import { areSellerOrdersResolved } from "./order.completion-policy.js";
 
 export const processAutoCompletion = async () => {
   const dueOrders = await prisma.order.findMany({
@@ -28,13 +29,7 @@ export const processAutoCompletion = async () => {
         !order.completionDueAt ||
         order.completionDueAt > new Date() ||
         order.disputedAt ||
-        !order.sellerOrders.length ||
-        !order.sellerOrders.every(
-          (sellerOrder) =>
-            sellerOrder.status === "DELIVERED" ||
-            sellerOrder.status === "COMPLETED" ||
-            sellerOrder.status === "CANCELLED",
-        )
+        !areSellerOrdersResolved(order.sellerOrders)
       ) {
         return;
       }
