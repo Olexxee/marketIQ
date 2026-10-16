@@ -14,7 +14,7 @@ export const createReviewBodySchema = z.object({
 export const updateReviewBodySchema = z.object({
   rating: z.number().int().min(1).max(5).optional(),
   title: z.string().trim().min(1).max(120).nullable().optional(),
-  comment: z.string().trim().min(10).max(3000).nullable().optional(),
+  comment: z.string().trim().min(10).max(3000).optional(),
 }).strict().refine(
   (value) => Object.keys(value).length > 0,
   "At least one review field must be supplied",
