@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { verifyWebhookSignature } from "../src/config/paystack.js";
@@ -22,8 +22,7 @@ test("rejects a modified body and an invalid signature", () => {
   assert.equal(verifyWebhookSignature(originalBody, ""), false);
 });
 
-test("restores the process environment after signature tests", () => {
+after(() => {
   if (originalSecret === undefined) delete process.env.PAYSTACK_SECRET_KEY;
   else process.env.PAYSTACK_SECRET_KEY = originalSecret;
-  assert.equal(true, true);
 });
