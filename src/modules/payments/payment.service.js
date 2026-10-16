@@ -16,6 +16,7 @@ import {
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { recordPaymentCaptureLedger, recordRefundLedger } from "./payment.ledger.js";
+import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import {
   createPayment,
   createRefundRecord,
@@ -29,6 +30,7 @@ import {
   hasPendingPaymentForOrder,
   updatePaymentStatusIfPending,
   updatePaymentStatusIfUnsettled,
+  extendOrderPaymentExpiry,
   findBuyerEmail,
   findOrderItems,
   findOrderWithPaymentContext,
@@ -75,6 +77,9 @@ export const initiatePaymentService = async (userId, orderId, options = {}) => {
     if (order.status === "CANCELLED") {
       throw new ConflictError("Order is cancelled");
     }
+    if (order.paymentExpiresAt && order.paymentExpiresAt <= new Date()) {
+      throw new ConflictError("Order payment window has expired; create a new order");
+    }
 
     if (order.paymentStatus === "SUCCESS") {
       throw new ConflictError("Order is already paid");
@@ -111,6 +116,8 @@ export const initiatePaymentService = async (userId, orderId, options = {}) => {
       },
       tx,
     );
+
+    await extendOrderPaymentExpiry(orderId, calculatePaymentExpiresAt(), tx);
 
     return {
       reuse: false,
