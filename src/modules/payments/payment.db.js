@@ -146,3 +146,10 @@ export const updatePaymentStatusIfUnsettled = async (id, status, tx, extra = {})
     data: { status, ...extra },
   });
 };
+
+export const extendOrderPaymentExpiry = async (orderId, expiresAt, tx) => {
+  return dbClient(tx).order.updateMany({
+    where: { id: orderId, status: { not: "CANCELLED" }, paymentStatus: { in: ["PENDING", "FAILED", "ABANDONED"] } },
+    data: { paymentExpiresAt: expiresAt },
+  });
+};
