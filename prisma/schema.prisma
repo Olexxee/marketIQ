@@ -1666,6 +1666,7 @@ model SellerSettlement {
   currency String @default("NGN")
   status SettlementStatus @default(REQUESTED)
   externalReference String? @unique
+  adjustmentReason String?
   failureReason String?
   paidAt DateTime?
   createdAt DateTime @default(now())
