@@ -43,6 +43,7 @@ import {
 import inventoryRouter from "./modules/inventory/inventory.routes.js";
 import marketActivityRouter from "./modules/market-activity/marketActivity.routes.js";
 import wishlistRouter from "./modules/wishlist/wishlist.routes.js";
+import reviewRouter from "./modules/reviews/review.routes.js";
 
 // ============================================================
 // SWAGGER
@@ -139,6 +140,7 @@ app.use("/api/checkout", paymentRouter)
 // router, otherwise Express matches "/:id" first.
 // ------------------------------------------------------------
 app.use("/api/products/:productId/variants", variantPublicRouter);
+app.use("/api", reviewRouter);
 app.use("/api/products", productRouter);
 
 // ------------------------------------------------------------
