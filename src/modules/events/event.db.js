@@ -57,13 +57,26 @@ export const markEventCompleted = async (id) => {
   });
 };
 
-export const markEventFailed = async (id, error, retryAt) => {
+export const markEventFailed = async (id, error, retryAt, terminal = false) => {
   return prisma.outboxEvent.update({
     where: { id },
     data: {
-      status: "PENDING",
+      status: terminal ? "FAILED" : "PENDING",
       availableAt: retryAt,
       lastError: error?.message ?? String(error),
+    },
+  });
+};
+
+
+export const recoverStaleProcessingEvents = async (staleMinutes = 15) => {
+  const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+  return prisma.outboxEvent.updateMany({
+    where: { status: "PROCESSING", updatedAt: { lt: cutoff } },
+    data: {
+      status: "PENDING",
+      availableAt: new Date(),
+      lastError: "Recovered stale processing event after worker interruption",
     },
   });
 };
