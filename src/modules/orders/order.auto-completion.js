@@ -32,7 +32,8 @@ export const processAutoCompletion = async () => {
         !order.sellerOrders.every(
           (sellerOrder) =>
             sellerOrder.status === "DELIVERED" ||
-            sellerOrder.status === "COMPLETED",
+            sellerOrder.status === "COMPLETED" ||
+            sellerOrder.status === "CANCELLED",
         )
       ) {
         return;
