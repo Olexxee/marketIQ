@@ -2,6 +2,10 @@ import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { successResponse } from "../../lib/response.js";
 import {
   getDisputeService,
+  listSettlementsService,
+  requestSellerSettlementService,
+  approveSellerSettlementService,
+  markSellerSettlementPaidService,
   listDisputesService,
   resolveDisputeService,
   reviewDisputeService,
@@ -45,4 +49,25 @@ export const requestRefund = asyncWrapper(async (req, res) => {
 export const processRefund = asyncWrapper(async (req, res) => {
   const refund = await processRefundService(req.user.id, req.params.id);
   return successResponse({ res, statusCode: 200, message: "Refund processing requested", data: refund });
+});
+
+
+export const listSettlements = asyncWrapper(async (req, res) => {
+  const result = await listSettlementsService(req.query);
+  return successResponse({ res, statusCode: 200, message: "Seller settlements retrieved", data: result.items, meta: { page: result.page, limit: result.limit, total: result.total, totalPages: Math.ceil(result.total / result.limit) } });
+});
+
+export const requestSellerSettlement = asyncWrapper(async (req, res) => {
+  const settlement = await requestSellerSettlementService(req.user.id, req.params.sellerOrderId);
+  return successResponse({ res, statusCode: 201, message: "Seller settlement requested", data: settlement });
+});
+
+export const approveSellerSettlement = asyncWrapper(async (req, res) => {
+  const settlement = await approveSellerSettlementService(req.user.id, req.params.id);
+  return successResponse({ res, statusCode: 200, message: "Seller settlement approved", data: settlement });
+});
+
+export const markSellerSettlementPaid = asyncWrapper(async (req, res) => {
+  const settlement = await markSellerSettlementPaidService(req.user.id, req.params.id, req.body.externalReference);
+  return successResponse({ res, statusCode: 200, message: "Seller settlement marked paid", data: settlement });
 });
