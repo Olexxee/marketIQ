@@ -12,7 +12,8 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
     "test": "node --test",
-    "worker": "node src/modules/events/worker.js"
+    "worker": "node src/modules/events/worker.js",
+    "prisma:validate": "prisma validate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
