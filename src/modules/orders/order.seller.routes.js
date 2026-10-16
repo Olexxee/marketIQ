@@ -13,7 +13,7 @@ import {
   validateBody,
   validateParams,
   validateQuery,
-} from "../../middlewares/validate.middleware.js";
+} from "../../middlewares/validateMiddleware.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireSeller } from "../../middlewares/seller.middleware.js";
 
