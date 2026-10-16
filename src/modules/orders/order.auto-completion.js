@@ -17,7 +17,8 @@ export const processAutoCompletion = async () => {
   });
 
   for (const candidate of dueOrders) {
-    await prisma.$transaction(async (tx) => {
+    try {
+      await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: candidate.id },
         include: { sellerOrders: { select: { id: true, status: true } } },
@@ -63,6 +64,9 @@ export const processAutoCompletion = async () => {
         },
         tx,
       );
-    });
+      });
+    } catch (error) {
+      console.error("[AUTO-COMPLETION] Failed for order:", candidate.id, error?.message);
+    }
   }
 };
