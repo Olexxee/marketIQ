@@ -1,7 +1,6 @@
 import { ConflictError, NotFoundError } from "../../classes/errorClasses.js";
 import {
   releaseReservationForOrderItem,
-  commitSaleForOrderItem,
 } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
@@ -306,15 +305,6 @@ export const updateSellerOrderStatusService = async (
         );
       }
       
-      if (nextStatus === "DELIVERED") {
-        const items = await findOrderItems(sellerOrder.orderId, tx);
-        const sellerItems = items.filter((i) => i.sellerOrderId === id);
-
-        for (const item of lockSort(sellerItems)) {
-          await commitSaleForOrderItem(item, tx);
-        }
-      }
-
       const items = await findOrderItems(sellerOrder.orderId, tx);
       const sellerItems = items.filter((i) => i.sellerOrderId === id);
 
