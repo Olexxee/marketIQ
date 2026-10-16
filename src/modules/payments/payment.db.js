@@ -74,3 +74,68 @@ export const updateManySellerOrderStatusByOrder = async (
 export const withTransaction = async (callback) => {
   return prisma.$transaction(callback, { timeout: 15000 });
 };
+
+export const claimOrderPaymentSuccess = async (orderId, tx) => {
+  return dbClient(tx).order.updateMany({
+    where: {
+      id: orderId,
+      paymentStatus: { in: ["PENDING", "FAILED", "ABANDONED"] },
+      status: { not: "CANCELLED" },
+    },
+    data: { paymentStatus: "SUCCESS" },
+  });
+};
+
+export const updatePaymentStatusIfPending = async (id, status, tx, extra = {}) => {
+  return dbClient(tx).payment.updateMany({
+    where: { id, status: "PENDING" },
+    data: { status, ...extra },
+  });
+};
+
+export const hasPendingPaymentForOrder = async (orderId, tx) => {
+  return dbClient(tx).payment.count({ where: { orderId, status: "PENDING" } }) > 0;
+};
+
+export const createRefundRecord = async (data, tx) => {
+  return dbClient(tx).refund.create({ data });
+};
+
+export const findRefundById = async (id, tx) => {
+  return dbClient(tx).refund.findUnique({ where: { id } });
+};
+
+export const findRefundByProviderReference = async (providerReference, tx) => {
+  return dbClient(tx).refund.findFirst({ where: { providerReference } });
+};
+
+export const updateRefund = async (id, data, tx) => {
+  return dbClient(tx).refund.update({ where: { id }, data });
+};
+
+export const updateRefundStatusIfProcessing = async (id, status, data = {}, tx) => {
+  return dbClient(tx).refund.updateMany({
+    where: { id, status: "PROCESSING" },
+    data: { status, ...data },
+  });
+};
+
+export const listRefunds = async ({ status, skip, take } = {}, tx) => {
+  return dbClient(tx).refund.findMany({
+    where: status ? { status } : {},
+    include: {
+      order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true } },
+      payment: { select: { id: true, reference: true, providerReference: true, amount: true, status: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    ...(skip !== undefined ? { skip } : {}),
+    ...(take !== undefined ? { take } : {}),
+  });
+};
+
+export const getRefundExposureForPayment = async (paymentId, tx) => {
+  return dbClient(tx).refund.aggregate({
+    where: { paymentId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "SUCCEEDED"] } },
+    _sum: { amount: true },
+  });
+};
