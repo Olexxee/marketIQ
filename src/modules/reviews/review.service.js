@@ -1,4 +1,3 @@
-import prisma from "../../config/prisma.js";
 import {
   BadRequestError,
   ConflictError,
@@ -9,6 +8,7 @@ import { recordMarketActivity } from "../market-activity/marketActivity.service.
 import {
   createReview,
   deleteReview,
+  findActiveProductForReviews,
   findActiveReviewProduct,
   findApprovedProductReviews,
   findEligiblePurchase,
@@ -21,19 +21,13 @@ import {
 } from "./review.db.js";
 
 export const listProductReviewsService = async (productId, pagination) => {
-  const product = await prisma.product.findFirst({
-    where: { id: productId, status: "ACTIVE", seller: { status: "ACTIVE" } },
-    select: { id: true },
-  });
+  const product = await findActiveProductForReviews(productId);
   if (!product) throw new NotFoundError("Active product not found");
   return findApprovedProductReviews({ productId, ...pagination });
 };
 
 export const getProductReviewSummaryService = async (productId) => {
-  const product = await prisma.product.findFirst({
-    where: { id: productId, status: "ACTIVE", seller: { status: "ACTIVE" } },
-    select: { id: true },
-  });
+  const product = await findActiveProductForReviews(productId);
   if (!product) throw new NotFoundError("Active product not found");
 
   const aggregate = await getApprovedProductReviewSummary(productId);
