@@ -469,19 +469,32 @@ export const requestRefundService = async (actorId, {
       return existing;
     }
 
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) throw new NotFoundError("Order not found");
-
-    const payment = paymentId
+    const paymentCandidate = paymentId
       ? await tx.payment.findFirst({ where: { id: paymentId, orderId, status: "SUCCESS" } })
       : await tx.payment.findFirst({
           where: { orderId, status: "SUCCESS" },
           orderBy: { createdAt: "desc" },
         });
-    if (!payment) throw new ConflictError("No successful payment is available to refund");
+    if (!paymentCandidate) throw new ConflictError("No successful payment is available to refund");
 
-    // Serialize refundable-balance checks for this payment to prevent concurrent over-refunds.
-    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`;
+    // Lock payment first, then order, matching the payment-capture lock order.
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${paymentCandidate.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
+
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    const payment = await tx.payment.findUnique({ where: { id: paymentCandidate.id } });
+    if (!order) throw new NotFoundError("Order not found");
+    if (!payment || payment.status !== "SUCCESS") {
+      throw new ConflictError("Payment state changed before the refund could be requested");
+    }
+
+    const paidSettlements = await tx.sellerSettlement.count({
+      where: { sellerOrder: { orderId }, status: "PAID" },
+    });
+    if (paidSettlements > 0) {
+      throw new ConflictError("A seller settlement has already been paid; finance must record a recovery plan before refunding");
+    }
+
     const exposure = await getRefundExposureForPayment(payment.id, tx);
     const reserved = Number(exposure._sum.amount ?? 0);
     const available = Math.max(0, Number(payment.amount) - reserved);
