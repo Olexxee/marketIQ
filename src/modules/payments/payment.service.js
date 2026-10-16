@@ -720,6 +720,8 @@ export const processRefundService = async (actorId, refundId) => {
     await finalizeRefundSuccess(prepared.refund.id, { data: providerResult });
   } else if (["failed", "rejected"].includes(providerStatus)) {
     await finalizeRefundFailure(prepared.refund.id, { data: providerResult }, "Paystack reported refund failure");
+  } else if (providerStatus === "needs-attention") {
+    await handleRefundNeedsAttention(providerReference, { data: providerResult });
   }
   return findRefundById(prepared.refund.id);
 };
@@ -822,5 +824,6 @@ export const retryRefundWithDetailsService = async (actorId, refundId, details) 
   const status = String(providerResult?.status ?? "").toLowerCase();
   if (status === "processed") await finalizeRefundSuccess(refundId, { data: providerResult });
   else if (status === "failed") await finalizeRefundFailure(refundId, { data: providerResult }, "Paystack reported refund failure");
+  else if (status === "needs-attention") await handleRefundNeedsAttention(prepared.providerReference, { data: providerResult });
   return findRefundById(refundId);
 };
