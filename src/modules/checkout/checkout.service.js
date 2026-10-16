@@ -7,6 +7,7 @@ import { recordMarketActivity } from "../market-activity/marketActivity.service.
 import { reserveInventoryForOrderItem } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
+import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import {
   createOrder,
   createOrderItem,
@@ -137,6 +138,7 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
       total: orderSubtotal,
       status: "PENDING",
       paymentStatus: "PENDING",
+      paymentExpiresAt: calculatePaymentExpiresAt(),
       notes: payload.notes ?? null,
     },
     tx
