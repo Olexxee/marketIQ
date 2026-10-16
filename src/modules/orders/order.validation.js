@@ -49,3 +49,19 @@ export const updateSellerOrderStatusSchema = z.object({
 export const disputeOrderSchema = z.object({
   notes: z.string().trim().min(1).max(1000),
 });
+
+export const disputeEvidenceSchema = z.object({
+  type: z.enum(["NOTE", "IMAGE", "DOCUMENT", "DELIVERY_PROOF", "COMMUNICATION", "OTHER"]),
+  description: z.string().trim().min(5).max(1500),
+  url: z.string().url().refine((value) => value.startsWith("https://"), {
+    message: "Evidence URLs must use HTTPS",
+  }).optional(),
+}).superRefine((value, ctx) => {
+  if (["IMAGE", "DOCUMENT", "DELIVERY_PROOF"].includes(value.type) && !value.url) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["url"],
+      message: "A secure evidence URL is required for this evidence type",
+    });
+  }
+});
