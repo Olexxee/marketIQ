@@ -184,6 +184,53 @@ export const listPaymentReconciliationService = async ({ page = 1, limit = 20 } 
 };
 
 
+export const resolvePaymentReconciliationService = async (actorId, paymentId, { resolution, notes }) => {
+  return withTransaction(async (tx) => {
+    const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundError("Payment not found");
+
+    const payload = payment.providerPayload && typeof payment.providerPayload === "object" && !Array.isArray(payment.providerPayload)
+      ? payment.providerPayload
+      : {};
+    if (payload.reconciliationRequired !== true) {
+      throw new ConflictError("Payment does not have an open reconciliation item");
+    }
+
+    const now = new Date();
+    const updated = await tx.payment.updateMany({
+      where: { id: paymentId, status: payment.status },
+      data: {
+        providerPayload: {
+          ...payload,
+          reconciliationRequired: false,
+          reconciliationResolvedAt: now.toISOString(),
+          reconciliationResolution: resolution,
+          reconciliationNotes: notes,
+        },
+      },
+    });
+    if (updated.count !== 1) {
+      throw new ConflictError("Payment changed before reconciliation could be resolved");
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: actorId,
+        action: "PAYMENT_RECONCILIATION_RESOLVED",
+        resource: "Payment",
+        resourceId: paymentId,
+        metadata: { orderId: payment.orderId, reference: payment.reference, resolution, notes },
+      },
+    });
+
+    return tx.payment.findUnique({
+      where: { id: paymentId },
+      include: { order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true } } },
+    });
+  });
+};
+
+
 // ============================================================
 // SELLER SETTLEMENTS (manual payout reconciliation)
 // ============================================================
