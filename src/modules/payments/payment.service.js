@@ -14,8 +14,13 @@ import {
 } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
+import { recordPaymentCaptureLedger } from "./payment.ledger.js";
 import {
   createPayment,
+  createRefundRecord,
+  claimOrderPaymentSuccess,
+  hasPendingPaymentForOrder,
+  updatePaymentStatusIfPending,
   findBuyerEmail,
   findOrderItems,
   findOrderWithPaymentContext,
@@ -263,27 +268,63 @@ export const handleChargeFailed = async (reference, event) => {
 const applySuccessfulPayment = async (paymentId, rawEvent) => {
   return withTransaction(async (tx) => {
     const payment = await findPaymentById(paymentId, tx);
+    if (!payment || payment.status === "SUCCESS") return;
 
-    if (!payment) return;
-    if (payment.status === "SUCCESS") return;
-
-    await updatePayment(
+    const updated = await updatePaymentStatusIfPending(
       payment.id,
+      "SUCCESS",
+      tx,
       {
-        status: "SUCCESS",
-        providerReference:
-          rawEvent?.data?.reference || payment.providerReference,
+        providerReference: rawEvent?.data?.reference || payment.providerReference,
         providerPayload: rawEvent ?? undefined,
       },
-      tx,
     );
+    if (updated.count !== 1) return;
 
-    if (!payment.orderId) return;
+    if (!payment.orderId) {
+      await recordPaymentCaptureLedger({ payment, orderId: null, refundLiability: true }, tx);
+      return;
+    }
 
-    await updateOrderPaymentStatus(payment.orderId, "SUCCESS", tx);
+    const claimedOrder = await claimOrderPaymentSuccess(payment.orderId, tx);
+    if (claimedOrder.count !== 1) {
+      const order = await tx.order.findUnique({
+        where: { id: payment.orderId },
+        select: { id: true, status: true },
+      });
+      const reason = order?.status === "CANCELLED"
+        ? "Late successful payment for cancelled order"
+        : "Duplicate successful payment requiring refund";
+      const refund = await createRefundRecord({
+        orderId: payment.orderId,
+        paymentId: payment.id,
+        amount: payment.amount,
+        currency: payment.currency,
+        reason,
+        status: "REQUESTED",
+        idempotencyKey: `late-charge:${payment.id}`,
+      }, tx);
+      await recordPaymentCaptureLedger({ payment, orderId: payment.orderId, refundLiability: true }, tx);
+      await tx.auditLog.create({
+        data: {
+          action: "PAYMENT_CAPTURE_REQUIRES_REFUND",
+          resource: "Payment",
+          resourceId: payment.id,
+          metadata: { orderId: payment.orderId, refundId: refund.id, reason },
+        },
+      });
+      await publishEvent({
+        eventType: EVENT_TYPES.REFUND_REQUESTED,
+        aggregateType: "REFUND",
+        aggregateId: refund.id,
+        payload: { refundId: refund.id, orderId: payment.orderId, paymentId: payment.id, reason },
+      }, tx);
+      return;
+    }
+
+    await recordPaymentCaptureLedger({ payment, orderId: payment.orderId }, tx);
 
     const items = await findOrderItems(payment.orderId, tx);
-
     for (const item of lockSort(items)) {
       await commitSaleForOrderItem(item, tx);
     }
@@ -291,68 +332,63 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
     await updateManySellerOrderStatusByOrder(payment.orderId, "CONFIRMED", tx);
     await recalculateOrderStatus(payment.orderId, tx);
 
-    await publishEvent(
-      {
-        eventType: EVENT_TYPES.PAYMENT_COMPLETED,
-        aggregateType: "PAYMENT",
-        aggregateId: payment.id,
-        payload: {
-          paymentId: payment.id,
-          orderId: payment.orderId,
-          amount: Number(payment.amount),
-          currency: payment.currency,
-          provider: payment.provider,
-          reference: payment.reference,
-        },
+    await publishEvent({
+      eventType: EVENT_TYPES.PAYMENT_COMPLETED,
+      aggregateType: "PAYMENT",
+      aggregateId: payment.id,
+      payload: {
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amount: Number(payment.amount),
+        currency: payment.currency,
+        provider: payment.provider,
+        reference: payment.reference,
       },
-      tx,
-    );
+    }, tx);
   });
 };
 
 const applyFailedPayment = async (paymentId, rawEvent) => {
   return withTransaction(async (tx) => {
     const payment = await findPaymentById(paymentId, tx);
+    if (!payment || payment.status === "SUCCESS") return;
 
-    if (!payment) return;
-    if (payment.status === "SUCCESS") return;
-
-    await updatePayment(
+    const updated = await updatePaymentStatusIfPending(
       payment.id,
-      {
-        status: "FAILED",
-        providerPayload: rawEvent ?? undefined,
-      },
+      "FAILED",
       tx,
+      { providerPayload: rawEvent ?? undefined },
     );
+    if (updated.count !== 1) return;
 
-    if (!payment.orderId) return;
+    if (payment.orderId) {
+      const anotherPendingPayment = await hasPendingPaymentForOrder(payment.orderId, tx);
+      if (!anotherPendingPayment) {
+        await tx.order.updateMany({
+          where: {
+            id: payment.orderId,
+            paymentStatus: { in: ["PENDING", "FAILED", "ABANDONED"] },
+            status: { not: "CANCELLED" },
+          },
+          data: { paymentStatus: "FAILED" },
+        });
+      }
 
-    await updateOrderPaymentStatus(payment.orderId, "FAILED", tx);
-
-    const items = await findOrderItems(payment.orderId, tx);
-
-    for (const item of lockSort(items)) {
-      await releaseReservationForOrderItem(item, tx);
+      // A failed attempt is not proof the buyer abandoned the order. Keep its
+      // reservations and seller orders intact so another payment attempt can succeed.
     }
 
-    await updateManySellerOrderStatusByOrder(payment.orderId, "CANCELLED", tx);
-    await recalculateOrderStatus(payment.orderId, tx);
-    
-    await publishEvent(
-      {
-        eventType: EVENT_TYPES.PAYMENT_FAILED,
-        aggregateType: "PAYMENT",
-        aggregateId: payment.id,
-        payload: {
-          paymentId: payment.id,
-          orderId: payment.orderId,
-          reference: payment.reference,
-          reason: rawEvent?.data?.gateway_response || "Payment failed",
-        },
+    await publishEvent({
+      eventType: EVENT_TYPES.PAYMENT_FAILED,
+      aggregateType: "PAYMENT",
+      aggregateId: payment.id,
+      payload: {
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        reference: payment.reference,
+        reason: rawEvent?.data?.gateway_response || "Payment failed",
       },
-      tx,
-    );
+    }, tx);
   });
 };
 
