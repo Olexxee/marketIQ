@@ -3,11 +3,13 @@ import {
   getSellerOrder,
   listSellerOrders,
   updateSellerOrderStatus,
+  submitSellerDisputeEvidence,
 } from "./order.controller.js";
 import {
   orderIdParamSchema,
   sellerOrderQuerySchema,
   updateSellerOrderStatusSchema,
+  disputeEvidenceSchema,
 } from "./order.validation.js";
 import {
   validateBody,
@@ -33,3 +35,10 @@ router.patch(
 );
 
 export default router;
+
+router.post(
+  "/:id/dispute/evidence",
+  validateParams(orderIdParamSchema),
+  validateBody(disputeEvidenceSchema),
+  submitSellerDisputeEvidence,
+);
