@@ -289,7 +289,9 @@ export const updateFulfillmentService = async (sellerId, id, payload) => {
       const config = await tx.businessConfig.findUnique({
         where: { key: "FULFILLMENT_AUTO_COMPLETION_DAYS" },
       });
-      const configuredDays = Number(config?.value ?? 7);
+      const configuredDays = Number(
+        process.env.FULFILLMENT_AUTO_COMPLETION_DAYS ?? config?.value ?? 7,
+      );
       const completionDays =
         Number.isInteger(configuredDays) && configuredDays >= 1 && configuredDays <= 90
           ? configuredDays
