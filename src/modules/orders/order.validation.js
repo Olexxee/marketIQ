@@ -42,7 +42,7 @@ export const cancelOrderSchema = z.object({
 });
 
 export const updateSellerOrderStatusSchema = z.object({
-  status: z.enum(["PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"]),
+  status: z.enum(["PROCESSING", "SHIPPED", "CANCELLED"]),
 });
 
 
