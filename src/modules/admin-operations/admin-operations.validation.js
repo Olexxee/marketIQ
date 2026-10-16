@@ -66,3 +66,8 @@ export const settlementRequestSchema = z.object({
     ctx.addIssue({ code: "custom", path: ["adjustmentReason"], message: "adjustmentReason is required when overriding the settlement amount" });
   }
 });
+
+export const paymentReconciliationListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
