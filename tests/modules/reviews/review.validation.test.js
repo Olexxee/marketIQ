@@ -7,6 +7,7 @@ const {
   reviewIdParamSchema,
   reviewListQuerySchema,
   updateReviewBodySchema,
+  reviewModerationBodySchema,
 } = await import("../../../src/modules/reviews/review.validation.js");
 
 const cuidValue = "clh7k2x9a0000qwerty123456";
@@ -41,6 +42,12 @@ test("review updates require at least one valid field", () => {
   assert.equal(updateReviewBodySchema.safeParse({ rating: 4 }).success, true);
   assert.equal(updateReviewBodySchema.safeParse({}).success, false);
   assert.equal(updateReviewBodySchema.safeParse({ rating: 8 }).success, false);
+});
+
+test("moderation accepts only approved or rejected status", () => {
+  assert.equal(reviewModerationBodySchema.safeParse({ status: "APPROVED" }).success, true);
+  assert.equal(reviewModerationBodySchema.safeParse({ status: "REJECTED" }).success, true);
+  assert.equal(reviewModerationBodySchema.safeParse({ status: "PENDING" }).success, false);
 });
 
 test("review list pagination applies defaults and limits", () => {
