@@ -20,6 +20,7 @@ import {
   withTransaction,
 } from "./order.db.js";
 import { recalculateOrderStatus } from "./order.status.service.js";
+import { areSellerOrdersResolved } from "./order.completion-policy.js";
 
 // ============================================================
 // STATE MACHINE (seller-driven)
@@ -153,12 +154,7 @@ export const confirmBuyerOrderService = async (userId, orderId) => {
       throw new ConflictError("Order has no seller orders");
     }
 
-    const allResolved = sellerOrders.every(
-      (so) =>
-        so.status === "DELIVERED" ||
-        so.status === "COMPLETED" ||
-        so.status === "CANCELLED",
-    );
+    const allResolved = areSellerOrdersResolved(sellerOrders);
 
     if (!allResolved) {
       throw new ConflictError(
