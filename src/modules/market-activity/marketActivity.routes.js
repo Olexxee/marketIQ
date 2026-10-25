@@ -1,11 +1,14 @@
 import { Router } from "express";
 import {
-  getMarketActivitiesController,
-  recordPublicMarketActivityController,
+  recordMarketActivitySchema,
+  getMarketActivitiesQuerySchema,
 } from "./marketActivity.controller.js";
 import { createRateLimiter } from "../../middlewares/rateLimit.js";
-import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { authenticate } from "../../middlewares/authenticate.js";
+import {
+  validate,
+  validateQuery, validateBody, validateParams
+} from "../../middlewares/validateMiddleware.js";
 
 
 const router = Router();
@@ -22,7 +25,7 @@ const activityWriteLimiter = createRateLimiter({
 router.post(
   "/",
   activityWriteLimiter,
-  validateBody(recordPublicMarketActivitySchema),
+  validateBody(recordMarketActivitySchema),
   recordPublicMarketActivityController,
 );
 
