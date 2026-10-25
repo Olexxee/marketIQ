@@ -8,7 +8,7 @@ for (const key of requiredEnv) {
   }
 }
 
-const configuredOrigins = (process.env.CORS_ORIGINS || "")
+const configuredOrigins = (process.env.CORS_ORIGINS || "https://market-iq-storefront.vercel.app")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
