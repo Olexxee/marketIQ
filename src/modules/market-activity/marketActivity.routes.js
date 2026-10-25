@@ -3,6 +3,7 @@ import {
   getMarketActivitiesController,
   recordPublicMarketActivityController,
 } from "./marketActivity.controller.js";
+import { createRateLimiter } from "../../middlewares/rateLimit.js";
 import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 
