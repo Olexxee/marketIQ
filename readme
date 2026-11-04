@@ -7,11 +7,8 @@ marketplaceBackend/
 ├── src/
 │   │
 │   ├── config/
-│   │
 │   ├── middleware/
-│   │
 │   ├── routes/
-│   │
 │   ├── modules/
 │   │   ├── auth/
 │   │   ├── users/
@@ -25,14 +22,11 @@ marketplaceBackend/
 │   │   ├── payments/
 │   │   ├── fulfillment/
 │   │   ├── reviews/
-│   │   │
 │   │   ├── events/
 │   │   ├── analytics/
 │   │   ├── intelligence/
 │   │   └── market/
-│   │
 │   ├── jobs/
-│   │
 │   ├── app.js
 │   └── server.js
 │
@@ -42,69 +36,208 @@ marketplaceBackend/
 ├── package.json
 └── README.md
 
-After that, our build order is
-Locations
-Nigeria
-36 states + FCT
-LGAs
-cities/areas
-location queries
-Authentication
-register/login
-access/refresh tokens
-cookie + Bearer support
-req.user.id
-role middleware
-Seller onboarding
-seller profile
-business locations
-fulfillment locations
-Catalog
-categories
-brands
-products
-variants
-media
-Inventory
-location-specific inventory
-stock movements
-reservation logic
-Marketplace
-search
-buyer discovery
-cart
-checkout
-orders
-seller orders
-fulfillment
-1688-style sourcing
-sourcing requests
-supplier responses
-negotiation
-counter offers
-accepted quote → order
-Behavior/event system
-searches
-views
-carts
-purchases
-stockouts
-sourcing activity
-acquisition attribution
-Analytics
-demand
-supply
-conversion
-geographic activity
-seller performance
-AI intelligence
-market opportunities
-unmet demand
-seller recommendations
-inventory opportunities
-buyer intelligence
-Financing-readiness layer
-Business Growth Profile
-evidence-based metrics
-consent
-financial-institution view
+## Build order
+
+1. Locations: Nigeria, 36 states + FCT, LGAs, cities/areas and location queries.
+2. Authentication: register/login, access/refresh tokens, cookie + Bearer support, req.user.id and role middleware.
+3. Seller onboarding: seller profile, business locations and fulfilment locations.
+4. Catalog: categories, brands, products, variants and media.
+5. Inventory: location-specific inventory, stock movements and reservation logic.
+6. Marketplace: search, buyer discovery, cart, checkout, orders, seller orders and fulfilment.
+7. 1688-style sourcing: sourcing requests, supplier responses, negotiation, counter offers and accepted quote → order.
+8. Behavior/event system: searches, views, carts, purchases, stockouts, sourcing activity and acquisition attribution.
+9. Analytics: demand, supply, conversion, geographic activity and seller performance.
+10. AI intelligence: market opportunities, unmet demand, seller recommendations, inventory opportunities and buyer intelligence.
+11. Financing-readiness layer: Business Growth Profile, evidence-based metrics, consent and financial-institution view.
+
+---
+
+# Logistic Hub integration
+
+## Integration status
+
+**Planned — architecture agreed; implementation has not started.**
+
+MarketIQ will integrate with Logistic Hub as an external logistics provider. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+
+### Agreed commercial and shipment model
+
+- **Billing: platform-funded.** MarketIQ collects the customer's order payment, including the delivery charge. MarketIQ is responsible for reconciling and settling the agreed logistics cost with Logistic Hub under a platform billing agreement.
+- **Shipment: one per seller order.** Each eligible SellerOrder and its fulfilment produce one independent Logistic Hub shipment request. A checkout containing multiple sellers therefore creates multiple shipments.
+- **Initial eligibility:** paid orders only.
+- **Initial settlement:** manual reconciliation; automate only after operational behavior is proven.
+- **No second customer payment:** Logistic Hub must not initiate a separate customer-facing charge for a MarketIQ shipment.
+
+### System ownership
+
+| Domain | System of record |
+|---|---|
+| Products, inventory, carts, checkout and customer orders | MarketIQ |
+| Customer and seller accounts | MarketIQ |
+| Customer payment and order refunds | MarketIQ |
+| Seller order and marketplace fulfilment record | MarketIQ |
+| Logistics booking and delivery pricing snapshot | Logistic Hub |
+| Delivery legs, routing and driver assignment | Logistic Hub |
+| Transport partners, hubs and custody handovers | Logistic Hub |
+| Delivery exceptions and operational resolution | Logistic Hub |
+| Customer-facing marketplace tracking projection | MarketIQ, synchronized from Logistic Hub events |
+| Platform-to-provider logistics reconciliation | MarketIQ, supported by Logistic Hub records |
+
+MarketIQ must not implement a second driver, delivery-leg, dispatch, hub-custody or logistics-exception state machine. It stores provider references and a customer-facing projection of authoritative Logistic Hub events.
+
+## Target integration flow
+
+1. Customer checks out in MarketIQ. MarketIQ creates the parent Order, SellerOrder records and fulfilment records.
+2. MarketIQ verifies Paystack payment. Successful payment is recorded and a durable outbox event is emitted.
+3. A logistics integration adapter processes each eligible seller order independently.
+4. The adapter validates the seller pickup location, customer destination, parcel details, delivery charge and agreed logistics cost.
+5. MarketIQ sends an authenticated, idempotent shipment request to Logistic Hub.
+6. Logistic Hub resolves external customer and seller references, creates the platform-funded booking and manages the delivery lifecycle.
+7. Logistic Hub sends signed webhook events to MarketIQ as the shipment progresses.
+8. MarketIQ verifies, deduplicates and records each event, then updates the corresponding fulfilment/tracking projection.
+
+Shipment creation is asynchronous. A Logistic Hub outage or retryable integration error must not undo a successfully paid MarketIQ order. A paid order is not proof that a shipment was successfully booked.
+
+## Service boundaries and identity
+
+- Use dedicated service-to-service authentication for MarketIQ. Do not use a customer JWT as an integration credential.
+- Integration credentials must be revocable and rotatable, with narrowly scoped permissions, audit records and secure secret storage.
+- MarketIQ customer, seller, order and fulfilment IDs are external references. They must never be passed as if they were Logistic Hub internal database IDs.
+- Logistic Hub must resolve external identities through a controlled integration mapping. The integration must not allow MarketIQ to choose or impersonate an internal senderId.
+- MarketIQ must not directly mutate Logistic Hub assignments, drivers, delivery legs, custody records or exception states.
+- Both systems retain independent databases, migrations, deployment lifecycles and internal domain models.
+
+## MarketIQ data model plan
+
+Add integration-specific records without replacing the existing Fulfillment model:
+
+| Model | Responsibility | Key constraints |
+|---|---|---|
+| LogisticsProvider | Provider identity and non-secret configuration metadata | Unique provider code |
+| LogisticsShipment | Links one MarketIQ fulfilment to one provider booking | Unique fulfilment/provider pair; unique external booking reference |
+| LogisticsEvent | Stores accepted provider milestones | Unique provider event ID |
+| LogisticsWebhookReceipt | Tracks inbound webhook receipt and processing | Unique provider/event ID |
+
+The shipment record is expected to retain:
+- MarketIQ fulfilment, provider and seller-order references.
+- External booking ID and tracking reference.
+- Integration status and last accepted provider-event timestamp.
+- Customer delivery charge and agreed logistics cost, stored separately.
+- Currency and platform billing agreement reference.
+- Stable request idempotency key.
+- Failure code/message and processing timestamps.
+- An immutable pickup, destination and parcel request snapshot, or a durable reference to one.
+
+All monetary values must use integer minor units. Floating-point money calculations are prohibited.
+
+The exact schema, relations, indexes, deletion behavior and event retention policy will be finalized during LI-02 after inspecting the current Prisma schema and existing fulfilment lifecycle. Do not add speculative columns before that review.
+
+## Logistic Hub changes required
+
+Logistic Hub needs a dedicated integration boundary, including:
+- Integration-client authentication and authorization.
+- External customer/seller identity mapping.
+- External source-system references on bookings.
+- A platform-funded booking pathway linked to an approved billing agreement.
+- A contract for creating and retrieving external shipments.
+- Signed webhook delivery, retry and audit records.
+
+Proposed API surface, subject to LI-01 contract review:
+
+    POST /api/v1/integrations/marketplace/shipments
+    GET  /api/v1/integrations/marketplace/shipments/:externalReference
+
+The create request will carry MarketIQ order, seller-order and fulfilment references; external customer and seller references; pickup and destination snapshots; recipient and parcel details; declared value where applicable; delivery charge; agreed logistics cost; billing agreement reference; and an idempotency key.
+
+The external booking path must not pretend that a customer payment was made. It must preserve Logistic Hub's existing payment safeguards while explicitly representing the platform-funded commercial arrangement. It must not create a Paystack charge against the customer.
+
+## Billing and reconciliation rules
+
+Keep these amounts distinct:
+
+1. **Customer delivery charge:** amount MarketIQ charged the customer.
+2. **Agreed logistics cost:** amount MarketIQ owes Logistic Hub under the platform agreement.
+3. **Difference:** platform delivery margin or subsidy before other costs, discounts, taxes, refunds and adjustments.
+
+A delivered shipment is not automatically a financially settled shipment. Delivery lifecycle and financial settlement are separate records and processes.
+
+Required controls:
+- Snapshot both amounts and the applicable billing agreement at booking time.
+- Reconcile cancellations, failed attempts, returns, refunds and other delivery exceptions against the actual logistics state.
+- Do not charge the customer again when retrying a booking request.
+- Do not mark a logistics liability settled solely because a shipment was delivered.
+- Keep an auditable link from each logistics cost to its MarketIQ seller order and external booking.
+- Begin with manual reconciliation; automate settlement only after commercial rules and exception cases are validated.
+
+## Location and shipment eligibility
+
+Before submitting a shipment:
+- The seller warehouse must map to an active Logistic Hub pickup service zone and valid pickup location.
+- The customer destination must map to a supported active destination service zone and valid coordinates.
+- Coordinates must be verified; do not infer them from a city, LGA or address label.
+- Parcel category, size, handling instructions and declared value must satisfy Logistic Hub booking rules.
+- Unsupported or unverified locations must be blocked from shipment submission and surfaced for operational resolution.
+
+A future checkout improvement should validate delivery coverage and calculate/confirm delivery pricing before payment. The initial integration must still prevent an ineligible paid order from being represented as a successfully booked shipment.
+
+## Integration implementation roadmap
+
+| Phase | Scope | Completion criteria |
+|---|---|---|
+| **LI-01 — Contract, identity and location readiness** | Finalize service authentication, external identity mapping, booking DTO, platform billing contract, location mapping and error semantics | Approved request/response contract; no internal-user impersonation; verified pickup/destination validation; no bypass of customer-payment safeguards |
+| **LI-02 — MarketIQ persistence and adapter** | Add provider, shipment, event and webhook receipt models; implement logistics module, repository, service, adapter and mapper | One provider shipment per fulfilment; durable snapshots; database uniqueness and idempotency; tests without a live provider |
+| **LI-03 — Logistic Hub integration API** | Implement integration authentication, external identity resolution, platform-funded booking and shipment lookup | Credential authorization/revocation; safe repeated requests; ordinary customer booking/payment behavior unchanged |
+| **LI-04 — Payment-triggered shipment creation** | Connect successful payment/outbox events to the MarketIQ logistics adapter | Paid eligible seller orders only; independent seller-order processing; retry-safe booking; provider outage does not break checkout |
+| **LI-05 — Signed webhooks and fulfilment synchronization** | Implement signed provider events, durable receipts, deduplication and state projection | Invalid signatures rejected; duplicate events harmless; stale events cannot regress state; customer tracking synchronized |
+| **LI-06 — Reconciliation, exceptions and production readiness** | Reconcile charges and liabilities; handle refunds, cancellations, failed delivery, returns and operational exceptions | Traceable shipment costs; actionable failure visibility; auditable reconciliation; documented recovery procedures |
+
+LI-02 and LI-03 may be developed in parallel after LI-01, provided both implementations follow the approved contract.
+
+## Event and failure-handling requirements
+
+MarketIQ's existing event dispatcher may retry an event after partial listener failure. The logistics listener must therefore maintain its own durable processing state and idempotency; it must not assume event dispatch is exactly-once.
+
+Expected outbound shipment processing states:
+
+    PENDING
+      ├── PROCESSING
+      │     ├── CREATED
+      │     ├── RETRY_PENDING
+      │     └── FAILED
+      └── CANCELLED
+
+The implementation must persist a successful external booking reference before considering the outbound operation complete. Retryable errors must be retried with bounded backoff; permanent validation failures must be surfaced for operational intervention. Concurrent processing must not create duplicate bookings.
+
+Proposed inbound provider event types:
+- SHIPMENT_CREATED
+- SHIPMENT_ACCEPTED
+- DRIVER_ASSIGNED
+- PICKUP_CONFIRMED
+- HUB_RECEIVED
+- IN_TRANSIT
+- DELIVERY_ATTEMPT_FAILED
+- DELIVERED
+- SHIPMENT_CANCELLED
+- SHIPMENT_EXCEPTION
+
+Webhook processing must verify signature and timestamp, persist the receipt/event, deduplicate by provider event identity, and prevent out-of-order events from regressing the current projection.
+
+## Non-negotiable safeguards
+
+1. No shared database between MarketIQ and Logistic Hub.
+2. No customer JWTs as service credentials.
+3. No external ID accepted as an internal Logistic Hub user ID.
+4. No duplicate bookings under retries or concurrent requests.
+5. No second customer payment for a MarketIQ shipment.
+6. No floating-point monetary calculations.
+7. No shipment submission for unverified or unsupported locations.
+8. No MarketIQ mutation of Logistic Hub operational state.
+9. No silent loss of failed outbound events or inbound webhooks.
+10. No automatic financial settlement based only on delivery status.
+11. No production rollout until integration, recovery, security and reconciliation tests pass.
+
+## Next action
+
+Begin with **LI-01**. Audit the current MarketIQ and Logistic Hub schemas, authentication, booking/payment services, event dispatcher/outbox and fulfilment lifecycle. Produce the exact file-level change list and a versioned integration contract before changing either database schema.
+
+**No integration implementation, schema migration, production credential or payment configuration has been changed as part of documenting this plan.**
