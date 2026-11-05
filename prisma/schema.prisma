@@ -1418,6 +1418,7 @@ model Warehouse {
   city    City?    @relation(fields: [cityId], references: [id])
 
   fulfillments Fulfillment[]
+  logisticsMappings LogisticsWarehouseMapping[]
 
   @@index([sellerId])
   @@index([locationId])
@@ -1935,6 +1936,7 @@ model LogisticsProvider {
   shipments LogisticsShipment[]
   events LogisticsEvent[]
   webhookReceipts LogisticsWebhookReceipt[]
+  warehouseMappings LogisticsWarehouseMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1947,6 +1949,7 @@ model LogisticsQuote {
   cartId String
   sellerId String
   sellerOrderId String? @unique
+  warehouseMappingId String?
 
   idempotencyKey String @unique
   providerQuoteReference String?
@@ -1968,12 +1971,36 @@ model LogisticsQuote {
   cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
   seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
   sellerOrder SellerOrder? @relation(fields: [sellerOrderId], references: [id], onDelete: SetNull)
+  warehouseMapping LogisticsWarehouseMapping? @relation(fields: [warehouseMappingId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([cartId, sellerId, status])
   @@index([providerId, expiresAt])
+  @@index([warehouseMappingId])
+}
+
+model LogisticsWarehouseMapping {
+  id String @id @default(cuid())
+
+  providerId String
+  warehouseId String
+  externalWarehouseReference String
+  isActive Boolean @default(false)
+  verifiedAt DateTime?
+  notes String?
+
+  provider LogisticsProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  quotes LogisticsQuote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([providerId, warehouseId])
+  @@unique([providerId, externalWarehouseReference])
+  @@index([warehouseId, isActive])
 }
 
 model LogisticsShipment {
