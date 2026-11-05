@@ -187,6 +187,7 @@ A future checkout improvement should validate delivery coverage and calculate/co
 **In progress — persistence foundation and monetary boundary.** The first implementation slice adds the following records:
 
 - `LogisticsProvider`: provider identity and non-secret configuration metadata.
+- `LogisticsWarehouseMapping`: explicit admin-managed mapping from a MarketIQ warehouse to a provider pickup reference; mappings are inactive until verified.
 - `LogisticsQuote`: cart/seller-scoped pre-payment quote with immutable request/response snapshots, expiry, acceptance and integer-minor-unit charge/cost fields. It can be bound to the resulting SellerOrder after checkout.
 - `LogisticsShipment`: one idempotent shipment per SellerOrder, with an optional link to the later-created Fulfillment.
 - `LogisticsEvent` and `LogisticsWebhookReceipt`: provider event deduplication and durable webhook receipt state.
@@ -195,7 +196,7 @@ The schema and migration are committed. Exact naira-decimal-string to kobo conve
 
 **Not yet implemented:** provider quote API calls, admin-managed warehouse mapping, checkout quote acceptance/expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, integration authentication, and inbound webhook processing. Do not enable or advertise live Logistic Hub checkout until those controls are complete and CI/migrations pass.
 
-**Known readiness blocker:** the current MarketIQ warehouse/address/location models do not provide a complete verified-coordinate contract for both pickup and destination. The quote adapter must not invent coordinates from city/LGA labels. LI-02 must add/consume verified location data and explicit provider warehouse mapping before live quotes can be enabled.
+**Known readiness blocker:** MarketIQ now has the explicit provider-to-warehouse mapping record, but there is not yet an admin workflow to manage/verify mappings, and the current warehouse/address/location models do not provide a complete verified-coordinate contract for both pickup and destination. The quote adapter must not invent coordinates from city/LGA labels. Live quotes remain blocked until verified pickup and destination location data are available.
 
 ## Integration implementation roadmap
 
