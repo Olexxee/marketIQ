@@ -56,7 +56,7 @@ marketplaceBackend/
 
 ## Integration status
 
-**Planned — architecture agreed; implementation has not started.**
+**LI-01 complete; LI-02 implementation in progress.**
 
 **LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
