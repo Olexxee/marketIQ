@@ -25,6 +25,7 @@ CREATE TABLE "LogisticsQuote" (
     "cartId" TEXT NOT NULL,
     "sellerId" TEXT NOT NULL,
     "sellerOrderId" TEXT,
+    "warehouseMappingId" TEXT,
     "idempotencyKey" TEXT NOT NULL,
     "providerQuoteReference" TEXT,
     "status" "LogisticsQuoteStatus" NOT NULL DEFAULT 'QUOTED',
@@ -38,6 +39,19 @@ CREATE TABLE "LogisticsQuote" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "LogisticsQuote_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "LogisticsWarehouseMapping" (
+    "id" TEXT NOT NULL,
+    "providerId" TEXT NOT NULL,
+    "warehouseId" TEXT NOT NULL,
+    "externalWarehouseReference" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedAt" TIMESTAMP(3),
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "LogisticsWarehouseMapping_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "LogisticsShipment" (
@@ -95,6 +109,10 @@ CREATE TABLE "LogisticsWebhookReceipt" (
 -- CreateIndex
 CREATE UNIQUE INDEX "LogisticsProvider_code_key" ON "LogisticsProvider"("code");
 CREATE UNIQUE INDEX "LogisticsQuote_sellerOrderId_key" ON "LogisticsQuote"("sellerOrderId");
+CREATE INDEX "LogisticsQuote_warehouseMappingId_idx" ON "LogisticsQuote"("warehouseMappingId");
+CREATE UNIQUE INDEX "LogisticsWarehouseMapping_providerId_warehouseId_key" ON "LogisticsWarehouseMapping"("providerId", "warehouseId");
+CREATE UNIQUE INDEX "LogisticsWarehouseMapping_providerId_externalWarehouseReference_key" ON "LogisticsWarehouseMapping"("providerId", "externalWarehouseReference");
+CREATE INDEX "LogisticsWarehouseMapping_warehouseId_isActive_idx" ON "LogisticsWarehouseMapping"("warehouseId", "isActive");
 CREATE UNIQUE INDEX "LogisticsQuote_idempotencyKey_key" ON "LogisticsQuote"("idempotencyKey");
 CREATE INDEX "LogisticsQuote_cartId_sellerId_status_idx" ON "LogisticsQuote"("cartId", "sellerId", "status");
 CREATE INDEX "LogisticsQuote_providerId_expiresAt_idx" ON "LogisticsQuote"("providerId", "expiresAt");
@@ -115,6 +133,9 @@ ALTER TABLE "LogisticsQuote" ADD CONSTRAINT "LogisticsQuote_providerId_fkey" FOR
 ALTER TABLE "LogisticsQuote" ADD CONSTRAINT "LogisticsQuote_cartId_fkey" FOREIGN KEY ("cartId") REFERENCES "Cart"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "LogisticsQuote" ADD CONSTRAINT "LogisticsQuote_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "SellerProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "LogisticsQuote" ADD CONSTRAINT "LogisticsQuote_sellerOrderId_fkey" FOREIGN KEY ("sellerOrderId") REFERENCES "SellerOrder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "LogisticsQuote" ADD CONSTRAINT "LogisticsQuote_warehouseMappingId_fkey" FOREIGN KEY ("warehouseMappingId") REFERENCES "LogisticsWarehouseMapping"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "LogisticsWarehouseMapping" ADD CONSTRAINT "LogisticsWarehouseMapping_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "LogisticsProvider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "LogisticsWarehouseMapping" ADD CONSTRAINT "LogisticsWarehouseMapping_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "LogisticsShipment" ADD CONSTRAINT "LogisticsShipment_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "LogisticsProvider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "LogisticsShipment" ADD CONSTRAINT "LogisticsShipment_sellerOrderId_fkey" FOREIGN KEY ("sellerOrderId") REFERENCES "SellerOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "LogisticsShipment" ADD CONSTRAINT "LogisticsShipment_fulfillmentId_fkey" FOREIGN KEY ("fulfillmentId") REFERENCES "Fulfillment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
