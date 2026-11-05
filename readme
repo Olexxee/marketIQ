@@ -89,16 +89,16 @@ MarketIQ must not implement a second driver, delivery-leg, dispatch, hub-custody
 
 ## Target integration flow
 
-1. Customer checks out in MarketIQ. MarketIQ creates the parent Order, SellerOrder records and fulfilment records.
-2. MarketIQ verifies Paystack payment. Successful payment is recorded and a durable outbox event is emitted.
-3. A logistics integration adapter processes each eligible seller order independently.
-4. The adapter validates the seller pickup location, customer destination, parcel details, delivery charge and agreed logistics cost.
-5. MarketIQ sends an authenticated, idempotent shipment request to Logistic Hub.
-6. Logistic Hub resolves external customer and seller references, creates the platform-funded booking and manages the delivery lifecycle.
-7. Logistic Hub sends signed webhook events to MarketIQ as the shipment progresses.
-8. MarketIQ verifies, deduplicates and records each event, then updates the corresponding fulfilment/tracking projection.
+1. MarketIQ resolves the active cart, groups items by seller and resolves each seller's admin-mapped pickup warehouse.
+2. Before creating a payable order, MarketIQ requests one Logistic Hub quote per seller shipment using a stable cart/seller quote request identity and a verified destination snapshot.
+3. MarketIQ persists each quote, its immutable request/response snapshots, customer delivery charge, agreed logistics cost and expiry. The customer reviews the delivery total.
+4. Checkout accepts only the unexpired quote set for the unchanged cart, seller origins and destination. It creates the Order/SellerOrders, snapshots delivery amounts onto each SellerOrder, and includes all delivery charges in the parent Order total.
+5. MarketIQ initializes Paystack using an exact naira-to-kobo conversion. Payment success is recorded with the existing payment transaction and durable outbox event.
+6. A logistics booking worker processes each paid eligible SellerOrder independently using a stable idempotency key. It must not initiate a second customer payment.
+7. Logistic Hub resolves external customer and seller references, creates the platform-funded booking and manages the delivery lifecycle.
+8. Logistic Hub sends signed webhook events. MarketIQ verifies, deduplicates and records each event before updating its customer-facing fulfilment/tracking projection.
 
-Shipment creation is asynchronous. A Logistic Hub outage or retryable integration error must not undo a successfully paid MarketIQ order. A paid order is not proof that a shipment was successfully booked.
+Shipment creation is asynchronous. A Logistic Hub outage or retryable integration error must not undo a successfully paid MarketIQ order. A paid order is not proof that a shipment was successfully booked. Quote expiry, cart mutation, seller-origin changes or destination changes invalidate the quote set and require a fresh quote before payment.
 
 ## Service boundaries and identity
 
@@ -181,6 +181,21 @@ Before submitting a shipment:
 - Unsupported or unverified locations must be blocked from shipment submission and surfaced for operational resolution.
 
 A future checkout improvement should validate delivery coverage and calculate/confirm delivery pricing before payment. The initial integration must still prevent an ineligible paid order from being represented as a successfully booked shipment.
+
+## LI-02 implementation progress
+
+**In progress — persistence foundation and monetary boundary.** The first implementation slice adds the following records:
+
+- `LogisticsProvider`: provider identity and non-secret configuration metadata.
+- `LogisticsQuote`: cart/seller-scoped pre-payment quote with immutable request/response snapshots, expiry, acceptance and integer-minor-unit charge/cost fields. It can be bound to the resulting SellerOrder after checkout.
+- `LogisticsShipment`: one idempotent shipment per SellerOrder, with an optional link to the later-created Fulfillment.
+- `LogisticsEvent` and `LogisticsWebhookReceipt`: provider event deduplication and durable webhook receipt state.
+
+The schema and migration are committed. Exact naira-decimal-string to kobo conversion is implemented and unit-tested; the Paystack initialization path now uses it instead of multiplying a JavaScript floating-point number.
+
+**Not yet implemented:** provider quote API calls, admin-managed warehouse mapping, checkout quote acceptance/expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, integration authentication, and inbound webhook processing. Do not enable or advertise live Logistic Hub checkout until those controls are complete and CI/migrations pass.
+
+**Known readiness blocker:** the current MarketIQ warehouse/address/location models do not provide a complete verified-coordinate contract for both pickup and destination. The quote adapter must not invent coordinates from city/LGA labels. LI-02 must add/consume verified location data and explicit provider warehouse mapping before live quotes can be enabled.
 
 ## Integration implementation roadmap
 
