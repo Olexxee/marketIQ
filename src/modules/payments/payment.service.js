@@ -17,6 +17,7 @@ import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { recordPaymentCaptureLedger, recordRefundLedger } from "./payment.ledger.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
+import { toMinorUnits } from "../logistics/money.js";
 import {
   createPayment,
   createRefundRecord,
@@ -124,7 +125,7 @@ export const initiatePaymentService = async (userId, orderId, options = {}) => {
       payment,
       email,
       orderNumber: order.orderNumber,
-      total: Number(order.total),
+      total: order.total.toString(),
     };
   });
 
@@ -146,7 +147,7 @@ export const initiatePaymentService = async (userId, orderId, options = {}) => {
 
   const paystack = await initializeTransaction({
     email: prepared.email,
-    amountKobo: Math.round(prepared.total * 100),
+    amountKobo: toMinorUnits(prepared.total),
     reference: prepared.payment.reference,
     callbackUrl,
     metadata: {
