@@ -58,6 +58,8 @@ marketplaceBackend/
 
 **Planned — architecture agreed; implementation has not started.**
 
+**LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
+
 MarketIQ will integrate with Logistic Hub as an external logistics provider. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
 
 ### Agreed commercial and shipment model
