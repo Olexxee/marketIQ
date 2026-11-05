@@ -192,7 +192,7 @@ A future checkout improvement should validate delivery coverage and calculate/co
 - `LogisticsShipment`: one idempotent shipment per SellerOrder, with an optional link to the later-created Fulfillment.
 - `LogisticsEvent` and `LogisticsWebhookReceipt`: provider event deduplication and durable webhook receipt state.
 
-The schema and migration are committed. Exact naira-decimal-string to kobo conversion is implemented and unit-tested; the Paystack initialization path now uses it instead of multiplying a JavaScript floating-point number.
+The schema and migration are committed. Exact naira-decimal-string to kobo conversion is implemented with unit tests added; the Paystack initialization path now uses it instead of multiplying a JavaScript floating-point number. The tests have not yet been run in CI.
 
 **Not yet implemented:** provider quote API calls, admin-managed warehouse mapping, checkout quote acceptance/expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, integration authentication, and inbound webhook processing. Do not enable or advertise live Logistic Hub checkout until those controls are complete and CI/migrations pass.
 
