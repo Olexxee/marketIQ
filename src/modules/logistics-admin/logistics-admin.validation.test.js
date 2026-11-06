@@ -28,6 +28,8 @@ test("coordinate verification rejects out-of-range values and unknown fields", (
     longitude: 181,
     source: "admin",
   }));
+  assert.throws(() => coordinateVerificationSchema.parse({ latitude: "", longitude: 3.3, source: "admin" }));
+  assert.throws(() => coordinateVerificationSchema.parse({ latitude: null, longitude: 3.3, source: "admin" }));
   assert.throws(() => coordinateVerificationSchema.parse({
     latitude: 6.6,
     longitude: 3.3,
