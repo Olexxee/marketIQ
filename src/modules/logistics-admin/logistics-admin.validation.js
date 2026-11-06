@@ -20,8 +20,13 @@ export const mappingVerificationSchema = z.object({
   notes: z.string().trim().min(5).max(1000),
 });
 
+const coordinateNumber = (minimum, maximum) => z.union([
+  z.number(),
+  z.string().trim().min(1).regex(/^-?\\d+(?:\\.\\d+)?$/, "Coordinate must be a decimal number"),
+]).transform(Number).pipe(z.number().finite().min(minimum).max(maximum));
+
 export const coordinateVerificationSchema = z.object({
-  latitude: z.coerce.number().finite().min(-90).max(90),
-  longitude: z.coerce.number().finite().min(-180).max(180),
+  latitude: coordinateNumber(-90, 90),
+  longitude: coordinateNumber(-180, 180),
   source: z.string().trim().min(3).max(200),
 }).strict();
