@@ -134,7 +134,7 @@ export const verifyWarehouseCoordinatesService = async (actorId, id, input) => {
     // Coordinate changes invalidate operational approval for every provider
     // mapping attached to this warehouse. Re-verification and reactivation are
     // intentionally separate admin actions.
-    await tx.logisticsWarehouseMapping.updateMany({
+    const invalidatedMappings = await tx.logisticsWarehouseMapping.updateMany({
       where: { warehouseId: id, isActive: true },
       data: { isActive: false, verifiedAt: null },
     });
@@ -143,7 +143,7 @@ export const verifyWarehouseCoordinatesService = async (actorId, id, input) => {
       latitude: input.latitude,
       longitude: input.longitude,
       source: input.source,
-      previouslyActiveMappingCount: warehouse.id ? undefined : 0,
+      invalidatedMappingCount: invalidatedMappings.count,
     });
     return updated;
   });
