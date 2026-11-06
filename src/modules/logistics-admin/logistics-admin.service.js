@@ -129,6 +129,7 @@ export const verifyWarehouseCoordinatesService = async (actorId, id, input) => {
     const updated = await tx.warehouse.update({
       where: { id },
       data: coordinateData(input),
+      select: { id: true, name: true, code: true, latitude: true, longitude: true, coordinatesVerifiedAt: true, coordinatesSource: true },
     });
 
     // Coordinate changes invalidate operational approval for every provider
@@ -157,6 +158,7 @@ export const verifyAddressCoordinatesService = async (actorId, id, input) => {
     const updated = await tx.address.update({
       where: { id },
       data: coordinateData(input),
+      select: { id: true, addressLine: true, latitude: true, longitude: true, coordinatesVerifiedAt: true, coordinatesSource: true, countryId: true, stateId: true, lgaId: true, cityId: true },
     });
     await audit(tx, actorId, "LOGISTICS_ADDRESS_COORDINATES_VERIFIED", "Address", id, {
       latitude: input.latitude,
