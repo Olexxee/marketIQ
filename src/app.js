@@ -31,6 +31,7 @@ import sellerOrderRouter from "./modules/orders/order.seller.routes.js";
 import checkoutRouter from "./modules/checkout/checkout.routes.js";
 import paymentRouter from "./modules/payments/payment.routes.js";
 import adminOperationsRouter from "./modules/admin-operations/admin-operations.routes.js";
+import logisticsAdminRouter from "./modules/logistics-admin/logistics-admin.routes.js";
 import { paystackWebhook } from "./modules/payments/payment.webhook.js";
 
 import productRouter from "./modules/products/product.routes.js";
@@ -140,6 +141,7 @@ app.use("/api/order", orderRouter)
 app.use("/api/checkout", checkoutRouter)
 app.use("/api/checkout", paymentRouter)
 app.use("/api/admin/operations", adminOperationsRouter);
+app.use("/api/admin/logistics", logisticsAdminRouter);
 
 // ------------------------------------------------------------
 // Public catalog
