@@ -22,7 +22,7 @@ export const mappingVerificationSchema = z.object({
 
 const coordinateNumber = (minimum, maximum) => z.union([
   z.number(),
-  z.string().trim().min(1).regex(/^-?\\d+(?:\\.\\d+)?$/, "Coordinate must be a decimal number"),
+  z.string().trim().min(1).regex(/^-?\d+(?:\.\d+)?$/, "Coordinate must be a decimal number"),
 ]).transform(Number).pipe(z.number().finite().min(minimum).max(maximum));
 
 export const coordinateVerificationSchema = z.object({
