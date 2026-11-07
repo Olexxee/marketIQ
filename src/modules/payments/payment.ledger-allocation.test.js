@@ -28,6 +28,7 @@ test("credits seller payable with merchandise only and recognizes Hub cost separ
     sellerPayableMinor: "10000",
     customerDeliveryChargeMinor: "1000",
     logisticsPayableMinor: "850",
+    unallocatedDeliveryMinor: "0",
     deliveryMarginMinor: "150",
     taxPayableMinor: "0",
     currency: "NGN",
