@@ -277,3 +277,15 @@ Current branch: `feat/li-02b-logistics-persistence`.
 - Added a forward-only migration. Existing quote/shipment rows and seller-managed fulfillment ownership are preserved.
 
 **Not yet implemented in LI-02B:** quote/option API services, checkout pricing, payment flow changes, booking worker, webhook receiver, or fulfillment ownership enforcement. These belong to LI-02C–LI-02F.
+
+
+### LI-02C checkout pricing implementation (in progress)
+
+Branch: `feat/li-02c-checkout-logistics-pricing`
+
+- Checkout accepts selected logistics quote IDs and validates that each quote belongs to the active cart, remains accepted/unconsumed, has an active provider, is unexpired, and matches its selected-option price snapshot.
+- One logistics quote per seller is allowed. Quotes are attached to the generated SellerOrder within the checkout transaction; concurrent consumption fails the transaction.
+- Accepted customer delivery charges are included in both parent Order and SellerOrder totals. Seller-managed seller groups without a selected logistics quote retain zero shipping.
+- Added exact kobo-to-NGN decimal-string formatting and unit coverage.
+- Checkout remains free of external Logistic Hub network calls; quote acquisition and option acceptance must occur before checkout.
+- **Remaining before LI-02C is complete:** quote request/option-selection API and provider adapter, integration-level checkout tests, exact checkout amount/payment tests, and CI verification. Do not deploy or treat this as end-to-end logistics quoting yet.
