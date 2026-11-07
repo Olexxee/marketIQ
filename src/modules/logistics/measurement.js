@@ -19,3 +19,33 @@ export const scaleMeasurementCeil = (value, multiplier, label = "measurement") =
   }
   return Number(scaled);
 };
+
+const WEIGHT_MULTIPLIERS = Object.freeze({ KG: 1000, G: 1 });
+const DIMENSION_MULTIPLIERS = Object.freeze({ CM: 10, MM: 1 });
+
+/**
+ * Normalize seller-declared package measurements to the Logistic Hub API units.
+ * Legacy records without explicit units/source are deliberately rejected.
+ */
+export const normalizeVariantMeasurements = variant => {
+  if (!variant || !["SELLER_DECLARED", "PLATFORM_MEASURED", "HUB_MEASURED"].includes(variant.measurementSource)) {
+    throw new ConflictError("Product package measurements must have a verified measurement source before requesting a delivery quote.");
+  }
+
+  const weightMultiplier = WEIGHT_MULTIPLIERS[variant.weightUnit];
+  const dimensionMultiplier = DIMENSION_MULTIPLIERS[variant.dimensionUnit];
+  if (!weightMultiplier || !dimensionMultiplier) {
+    throw new ConflictError("Product package measurements must declare supported weight and dimension units.");
+  }
+
+  const weightGrams = scaleMeasurementCeil(variant.weight, weightMultiplier, "weight");
+  const lengthMm = scaleMeasurementCeil(variant.length, dimensionMultiplier, "length");
+  const widthMm = scaleMeasurementCeil(variant.width, dimensionMultiplier, "width");
+  const heightMm = scaleMeasurementCeil(variant.height, dimensionMultiplier, "height");
+
+  if ([weightGrams, lengthMm, widthMm, heightMm].some(value => !Number.isSafeInteger(value) || value <= 0)) {
+    throw new ConflictError("Physical products require positive package weight, length, width and height before requesting a delivery quote.");
+  }
+
+  return { weightGrams, lengthMm, widthMm, heightMm };
+};

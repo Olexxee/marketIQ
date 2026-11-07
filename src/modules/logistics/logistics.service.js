@@ -5,7 +5,8 @@ import {
 import { env } from "../../config/env.js";
 import { buildVerifiedLogisticsLocation } from "./location.js";
 import { toMinorUnits } from "./money.js";
-import { scaleMeasurementCeil } from "./measurement.js";
+import { normalizeVariantMeasurements } from "./measurement.js";
+import { isQuoteOptionActiveAt } from "./quote-lifecycle.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import {
   acceptLocalQuoteOption,
@@ -30,9 +31,12 @@ const buildCartSnapshot = items => items.map(item => ({
   currentUnitPrice: item.variant.price.toString(),
   categoryId: item.variant.product.categoryId,
   weight: item.variant.weight.toString(),
+  weightUnit: item.variant.weightUnit ?? null,
   length: item.variant.length?.toString() ?? null,
   width: item.variant.width?.toString() ?? null,
   height: item.variant.height?.toString() ?? null,
+  dimensionUnit: item.variant.dimensionUnit ?? null,
+  measurementSource: item.variant.measurementSource ?? null,
 })).sort((a, b) => a.cartItemId.localeCompare(b.cartItemId));
 
 const parseMinorUnits = (value, field) => {
@@ -77,18 +81,12 @@ const buildPackages = (items, categoryMappings) => {
     if (packages.length >= 50) {
       throw new BadRequestError("A Logistic Hub quote supports at most 50 packages per seller shipment.");
     }
-    const weightGrams = scaleMeasurementCeil(variant.weight, 1000, "weight");
-    const lengthMm = scaleMeasurementCeil(variant.length, 10, "length");
-    const widthMm = scaleMeasurementCeil(variant.width, 10, "width");
-    const heightMm = scaleMeasurementCeil(variant.height, 10, "height");
+    const measurements = normalizeVariantMeasurements(variant);
     packages.push({
       externalPackageRef: item.id,
       packageCategory: mapping.externalPackageCategory,
       description: variant.product.name.slice(0, 500),
-      ...(weightGrams > 0 ? { weightGrams } : {}),
-      ...(lengthMm > 0 ? { lengthMm } : {}),
-      ...(widthMm > 0 ? { widthMm } : {}),
-      ...(heightMm > 0 ? { heightMm } : {}),
+      ...measurements,
       declaredValueMinor: String(toMinorUnits(variant.price.toString())),
     });
   }
@@ -285,11 +283,17 @@ export const acceptDeliveryQuoteOptionService = async (userId, quoteId, optionId
     if (quote.selectedOptionId === optionId) return presentQuote(quote);
     throw new ConflictError("A different delivery option has already been accepted for this quote.");
   }
-  if (quote.status !== "QUOTED" || quote.expiresAt <= new Date()) {
+  const acceptedAtCandidate = new Date();
+  if (quote.status !== "QUOTED" || !isQuoteOptionActiveAt({
+    quoteExpiresAt: quote.expiresAt,
+  }, acceptedAtCandidate)) {
     throw new ConflictError("This delivery quote has expired or is no longer selectable.");
   }
   const option = quote.options.find(item => item.id === optionId);
-  if (!option || (option.expiresAt && option.expiresAt <= new Date())) {
+  if (!option || !isQuoteOptionActiveAt({
+    quoteExpiresAt: quote.expiresAt,
+    optionExpiresAt: option.expiresAt,
+  }, acceptedAtCandidate)) {
     throw new ConflictError("The selected delivery option is unavailable or expired.");
   }
 

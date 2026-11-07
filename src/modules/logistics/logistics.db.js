@@ -92,11 +92,22 @@ export const acceptLocalQuoteOption = ({ quoteId, optionId, customerChargeMinor,
       }
       return null;
     }
+    const eligibleOptionCount = await tx.logisticsQuoteOption.count({
+      where: {
+        id: optionId,
+        quoteId,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: acceptedAt } }],
+      },
+    });
+    if (eligibleOptionCount !== 1) return null;
+
     const updated = await tx.logisticsQuote.updateMany({
       where: { id: quoteId, status: "QUOTED", selectedOptionId: null, expiresAt: { gt: acceptedAt } },
       data: {
         status: "ACCEPTED", selectedOptionId: optionId,
-        customerDeliveryChargeMinor, agreedLogisticsCostMinor, acceptedAt,
+        customerDeliveryChargeMinor: customerChargeMinor,
+        agreedLogisticsCostMinor: logisticsCostMinor,
+        acceptedAt,
       },
     });
     if (updated.count !== 1) return null;

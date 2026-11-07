@@ -42,8 +42,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/marketiq_ci
       - name: Apply all migrations to a clean PostgreSQL database
-        run: npx prisma migrate deploy
+        run: npm run prisma:migrate:deploy
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/marketiq_ci
       - name: Run tests
         run: npm test
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/marketiq_ci

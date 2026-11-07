@@ -66,6 +66,25 @@ const validatePriceRules = (payload) => {
   }
 };
 
+const MEASUREMENT_FIELDS = ["weight", "weightUnit", "length", "width", "height", "dimensionUnit"];
+
+const hasMeasurementChanges = payload =>
+  MEASUREMENT_FIELDS.some(field => payload[field] !== undefined);
+
+const assertPhysicalMeasurements = payload => {
+  if (payload.fulfillmentType === "DIGITAL") return;
+
+  const positive = value => value !== undefined && value !== null &&
+    Number.isFinite(Number(value)) && Number(value) > 0;
+
+  if (!positive(payload.weight) || !payload.weightUnit) {
+    throw new ConflictError("Physical product options require a positive package weight and an explicit weight unit.");
+  }
+  if (!positive(payload.length) || !positive(payload.width) || !positive(payload.height) || !payload.dimensionUnit) {
+    throw new ConflictError("Physical product options require positive package length, width and height with an explicit dimension unit.");
+  }
+};
+
 const extractMediaInput = (data) => {
   const { variantImages, ...rest } = data;
 
@@ -92,10 +111,14 @@ export const createVariantService = async (sellerId, productId, payload) => {
     }
 
     const sku = await resolveSku(sellerId, product, rest, tx);
+    const fulfillmentType = rest.fulfillmentType ?? "LOCAL";
+    assertPhysicalMeasurements({ ...rest, fulfillmentType });
 
     const variant = await createVariant(
       {
         ...rest,
+        fulfillmentType,
+        ...(fulfillmentType !== "DIGITAL" ? { measurementSource: "SELLER_DECLARED" } : {}),
         sku,
         productId,
         sellerId,
@@ -171,7 +194,20 @@ export const updateVariantService = async (sellerId, id, payload) => {
       }
     }
 
-    await updateVariant(id, rest, tx);
+    const nextVariant = { ...existing, ...rest };
+    const measurementChanged = hasMeasurementChanges(rest);
+    const fulfillmentChanged = rest.fulfillmentType !== undefined &&
+      rest.fulfillmentType !== existing.fulfillmentType;
+    if (nextVariant.fulfillmentType !== "DIGITAL" && (measurementChanged || fulfillmentChanged)) {
+      assertPhysicalMeasurements(nextVariant);
+    }
+
+    await updateVariant(id, {
+      ...rest,
+      ...(measurementChanged && nextVariant.fulfillmentType !== "DIGITAL"
+        ? { measurementSource: "SELLER_DECLARED" }
+        : {}),
+    }, tx);
 
     if (variantImages.length) {
       await persistOwnerMedia(

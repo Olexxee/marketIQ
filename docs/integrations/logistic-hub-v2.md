@@ -156,6 +156,9 @@ The receiving system deduplicates by source + external event ID, preserves event
 - The Hub validates payment authorization against the accepted quote and amount; it does not independently verify Paystack.
 - Shipment delivery does not mean the logistics invoice is settled.
 - Manual reconciliation remains the initial settlement model. Do not implement automatic transfers/payouts as part of shipment booking.
+- Seller settlement is calculated against merchandise subtotal only; customer delivery charges are never seller proceeds.
+- Payment capture records Hub logistics cost as a separate payable and customer-delivery margin/subsidy separately. Legacy delivery charges without a quote and ordinary refunds without a verified allocation remain in suspense accounts until reconciliation.
+- A successful refund requires an explicit, documented seller-settlement adjustment before approval/payout; do not infer the refund allocation from the gross refund amount.
 
 All cross-system monetary values use exact integer minor-unit strings and explicit currency. Floating-point money calculations are prohibited.
 
@@ -171,14 +174,18 @@ Logistic Hub preserves shipment, custody and packing evidence and provides audit
 
 - One Logistic Hub shipment per MarketIQ SellerOrder remains the v1 rule.
 - The current LI-02C quote adapter rejects cart-line quantity greater than one because the package consolidation/separation model is not defined. This restriction remains until a tested packing model is implemented; the richer manifest contract does not silently remove it.
-- MarketIQ variant measurement units must be confirmed against seller data entry. Current adapter assumptions (weight in kg, dimensions in cm) must not be treated as verified until confirmed or replaced with explicit unit metadata.
+- Physical ProductVariant measurements now use explicit seller-declared units: weight in kg or g, dimensions in cm or mm. MarketIQ converts these to integer grams/millimetres using upward rounding.
+- Legacy variants are not backfilled with guessed units. A physical variant without positive weight, all three positive dimensions, supported units and a measurement source is ineligible for a new delivery quote until reviewed and updated.
+- Digital variants are not eligible for parcel quotes and do not require physical measurements.
 - Quote and shipment acceptance retain immutable request, option, price, package and billing-agreement snapshots.
 - The Hub must not create synthetic sender/customer users to satisfy internal booking assumptions. The integration-owned shipment path remains sender-user independent.
 - Existing generic integration APIs and webhook contracts remain the baseline; any payload/schema change must be versioned and implemented in both systems before use.
 
 ## 10. LI-02 delivery sequence
 
-1. LI-02C post-merge hardening: confirm measurement units, retain quantity restriction until packing is designed, add checkout/Paystack amount tests and quote lifecycle recovery tests.
+1. LI-02C post-merge acceptance hardening: explicit package measurement units/source and legacy-data fail-closed behavior; exact integer-kobo/reference/currency validation in both Paystack verification paths; seller settlement capped at merchandise subtotal; payment-capture allocation across seller payable, Hub payable, delivery margin/subsidy and tax; suspense accounts for legacy delivery charges and unallocated refunds. Unit and PostgreSQL concurrency tests pass; configured-Hub staging and full checkout/payment acceptance remain release gates.
+
+**Production rollout gate:** MarketIQ Render auto-deploys from `master`, and its current start command does not apply Prisma migrations. Before merging the backend PR, configure the Render Start Command as `npx --yes prisma@6.19.0 migrate deploy && node src/server.js`, or disable auto-deploy and apply `npm run prisma:migrate:deploy` against the production database before redeploying. Deploy the backend first, verify the migration and health, then deploy the storefront; pause seller variant edits during the gap because the new backend requires measurements the old UI does not send. CI migration success applies only to its isolated test database.
 2. LI-02D: MarketIQ payment-verification transaction writes a durable shipment-authorization outbox event; payment response never waits for Hub.
 3. LI-02E: embedded booking worker sends/retries authorization; Hub creates or recovers shipment idempotently and activates fulfilment.
 4. LI-02F: signed event receiver and customer-facing tracking projection, including packing-evidence and cancellation coordination events.

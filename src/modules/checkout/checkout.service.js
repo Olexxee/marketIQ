@@ -9,6 +9,8 @@ import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import { fromMinorUnits, toMinorUnits } from "../logistics/money.js";
+import { calculateCheckoutTotals } from "./checkout-totals.js";
+import { isQuoteOptionActiveAt } from "../logistics/quote-lifecycle.js";
 import {
   createOrder,
   findAcceptedLogisticsQuotesForCheckout,
@@ -90,13 +92,6 @@ const groupItemsBySeller = (items) => {
     groups.get(seller.id).items.push(item);
   }
   return Array.from(groups.values());
-};
-
-const calculateSellerSubtotalMinor = (items) => {
-  return items.reduce(
-    (sum, item) => sum + BigInt(toMinorUnits(item.unitPriceSnapshot.toString())) * BigInt(item.quantity),
-    0n,
-  );
 };
 
 const resolveDelivery = async (userId, payload, tx) => {
@@ -318,8 +313,12 @@ export const checkoutService = async (userId, payload) => {
     const quotesBySeller = new Map();
     for (const quote of logisticsQuotes) {
       if (!quote.provider?.isActive || quote.currency !== "NGN" ||
-          !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
-          quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
+          !quote.selectedOption ||
+          !isQuoteOptionActiveAt({
+            quoteExpiresAt: quote.expiresAt,
+            optionExpiresAt: quote.selectedOption.expiresAt,
+          }) ||
+          quote.selectedOptionId == null ||
           !quote.warehouseMapping?.isActive || !quote.warehouseMapping?.verifiedAt ||
           !quote.warehouseMapping?.warehouse?.isActive ||
           !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
@@ -350,16 +349,11 @@ export const checkoutService = async (userId, payload) => {
     }
 
     // 5. Calculate merchandise and delivery totals independently.
-    let orderSubtotalMinor = 0n;
-    let orderShippingTotalMinor = 0n;
-    const sellerTotals = sellerGroups.map((group) => {
-      const subtotalMinor = calculateSellerSubtotalMinor(group.items);
-      orderSubtotalMinor += subtotalMinor;
-      const quote = quotesBySeller.get(group.seller.id);
-      const shippingTotalMinor = quote ? quote.customerDeliveryChargeMinor : 0n;
-      orderShippingTotalMinor += shippingTotalMinor;
-      return { sellerId: group.seller.id, subtotalMinor, shippingTotalMinor, quoteId: quote?.id ?? null };
-    });
+    const {
+      sellerTotals,
+      orderSubtotalMinor,
+      orderShippingTotalMinor,
+    } = calculateCheckoutTotals(sellerGroups, quotesBySeller);
 
     // 6. Create parent order
     const order = await createMarketplaceOrder(

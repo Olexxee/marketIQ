@@ -109,3 +109,34 @@ test("rejects missing credentials and insecure production URLs", () => {
     else process.env.NODE_ENV = previous;
   }
 });
+
+
+test("allows a timed-out quote creation to be replayed with the identical idempotency key and payload", async () => {
+  const attempts = [];
+  const client = createLogisticHubClient({
+    config,
+    fetchImpl: async (url, options) => {
+      attempts.push({
+        url,
+        idempotencyKey: options.headers["Idempotency-Key"],
+        body: options.body,
+      });
+      if (attempts.length === 1) throw new Error("simulated response timeout after provider commit");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { quoteSession: { id: "quote-recovered" }, options: [] } }),
+      };
+    },
+  });
+  const payload = { externalFulfillmentReference: "mqi-stable-ref", packages: [{ weightGrams: 1000 }] };
+  await assert.rejects(client.createQuote(payload, "same-quote-idempotency-key"), error =>
+    error.code === "LOGISTIC_HUB_UNAVAILABLE" && error.retryable === true,
+  );
+  const recovered = await client.createQuote(payload, "same-quote-idempotency-key");
+
+  assert.equal(recovered.quoteSession.id, "quote-recovered");
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0].idempotencyKey, attempts[1].idempotencyKey);
+  assert.equal(attempts[0].body, attempts[1].body);
+});
