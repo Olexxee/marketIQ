@@ -141,5 +141,18 @@ export function createLogisticHubClient({
         { method: "POST", body: {}, idempotencyKey },
       );
     },
+    createShipment(input, idempotencyKey) {
+      return request("/shipments", { method: "POST", body: input, idempotencyKey });
+    },
+    async getShipmentByExternalReference(externalFulfillmentReference) {
+      try {
+        return await request(
+          `/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}`,
+        );
+      } catch (error) {
+        if (error instanceof LogisticHubApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
   });
 }
