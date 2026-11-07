@@ -56,7 +56,7 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01 complete; LI-02 implementation in progress.**
+**LI-01 and LI-02A complete; LI-02B persistence implementation in progress.**
 
 **LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
@@ -261,3 +261,19 @@ Webhook processing must verify signature and timestamp, persist the receipt/even
 Begin with **LI-01**. Audit the current MarketIQ and Logistic Hub schemas, authentication, booking/payment services, event dispatcher/outbox and fulfilment lifecycle. Produce the exact file-level change list and a versioned integration contract before changing either database schema.
 
 **No integration implementation, schema migration, production credential or payment configuration has been changed as part of documenting this plan.**
+
+
+### LI-02B implementation status (2026-11-07)
+
+Current branch: `feat/li-02b-logistics-persistence`.
+
+- Added normalized `LogisticsQuoteOption` records so one provider quote session can preserve multiple immutable provider options.
+- Quote charge/cost snapshot fields are nullable until an option is selected; option prices remain required integer-kobo `BigInt` values.
+- Added selected-option linkage and a stable provider-scoped external fulfillment reference to quote persistence.
+- Changed quote and shipment idempotency/external-reference uniqueness to provider-scoped composite constraints.
+- Added per-shipment event sequence uniqueness and positive-sequence validation.
+- Added webhook raw-body SHA-256 and signature timestamp/version audit fields. Raw webhook bytes are intentionally not retained; the receiver must verify HMAC against raw bytes before persisting the receipt.
+- Added `Fulfillment.ownerMode` so later lifecycle work can distinguish seller-managed fulfillment from Logistic Hub-managed fulfillment.
+- Added a forward-only migration. Existing quote/shipment rows and seller-managed fulfillment ownership are preserved.
+
+**Not yet implemented in LI-02B:** quote/option API services, checkout pricing, payment flow changes, booking worker, webhook receiver, or fulfillment ownership enforcement. These belong to LI-02C–LI-02F.
