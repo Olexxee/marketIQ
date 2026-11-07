@@ -43,10 +43,31 @@ test("mapping creation requires provider, warehouse and an external reference", 
     providerId: "provider",
     warehouseId: "warehouse",
     externalWarehouseReference: "",
+    externalServiceZoneId: "",
   }));
 });
 
 test("mapping verification requires a meaningful audit note", () => {
   assert.throws(() => mappingVerificationSchema.parse({ notes: "ok" }));
   assert.equal(mappingVerificationSchema.parse({ notes: "Confirmed in provider console" }).notes, "Confirmed in provider console");
+});
+
+import {
+  serviceZoneMappingCreateSchema,
+  packageCategoryMappingCreateSchema,
+} from "./logistics-admin.validation.js";
+
+test("service-zone mapping requires an explicit LGA and provider zone reference", () => {
+  assert.throws(() => serviceZoneMappingCreateSchema.parse({
+    providerId: "provider", lgaId: "lga", externalServiceZoneId: "",
+  }));
+});
+
+test("package-category mapping requires a provider-compatible category reference", () => {
+  assert.throws(() => packageCategoryMappingCreateSchema.parse({
+    providerId: "provider", categoryId: "category", externalPackageCategory: "",
+  }));
+  assert.equal(packageCategoryMappingCreateSchema.parse({
+    providerId: "provider", categoryId: "category", externalPackageCategory: "PARCEL",
+  }).externalPackageCategory, "PARCEL");
 });
