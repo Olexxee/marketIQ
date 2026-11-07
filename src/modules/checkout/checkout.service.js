@@ -100,6 +100,10 @@ const resolveDelivery = async (userId, payload, tx) => {
       deliveryCityId: address.cityId,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone ?? address.phone,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      coordinatesVerifiedAt: address.coordinatesVerifiedAt,
+      coordinatesSource: address.coordinatesSource,
     };
   }
 
@@ -290,6 +294,9 @@ export const checkoutService = async (userId, payload) => {
     if (new Set(quoteIds).size !== quoteIds.length) {
       throw new BadRequestError("Duplicate logistics quote IDs are not allowed.");
     }
+    if (quoteIds.length && !payload.addressId) {
+      throw new BadRequestError("Logistics delivery quotes require the same saved delivery address used to request them.");
+    }
     const logisticsQuotes = await findAcceptedLogisticsQuotesForCheckout(quoteIds, cart.id, tx);
     if (logisticsQuotes.length !== quoteIds.length) {
       throw new ConflictError("One or more delivery quotes are invalid, already used, or no longer accepted.");
@@ -299,6 +306,11 @@ export const checkoutService = async (userId, payload) => {
       if (!quote.provider?.isActive || quote.currency !== "NGN" ||
           !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
           quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
+          !quote.warehouseMapping?.isActive || !quote.warehouseMapping?.verifiedAt ||
+          !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
+          quote.requestSnapshot?.addressId !== payload.addressId ||
+          Number(quote.requestSnapshot?.request?.destination?.latitude) !== Number(delivery.latitude) ||
+          Number(quote.requestSnapshot?.request?.destination?.longitude) !== Number(delivery.longitude) ||
           quote.customerDeliveryChargeMinor !== quote.selectedOption.customerDeliveryChargeMinor ||
           quote.agreedLogisticsCostMinor !== quote.selectedOption.agreedLogisticsCostMinor) {
         throw new ConflictError("A selected delivery quote has expired or its price snapshot is inconsistent.");
