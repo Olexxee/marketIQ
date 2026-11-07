@@ -30,7 +30,7 @@ startServer();
 const shutdown = async (signal) => {
   console.log(`${signal} received. Shutting down...`);
 
-  stopShipmentAuthorizationWorker();
+  await stopShipmentAuthorizationWorker();
   await prisma.$disconnect();
 
   process.exit(0);
