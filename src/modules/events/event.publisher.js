@@ -2,7 +2,7 @@ import { BadRequestError } from "../../classes/errorClasses.js";
 import { createOutboxEvent } from "./event.db.js";
 
 export const publishEvent = async (
-  { eventType, aggregateType, aggregateId, payload = {} },
+  { eventType, aggregateType, aggregateId, payload = {}, dedupeKey = null },
   tx,
 ) => {
   if (!eventType) {
@@ -23,6 +23,7 @@ export const publishEvent = async (
       aggregateType,
       aggregateId,
       payload,
+      dedupeKey,
     },
     tx,
   );
