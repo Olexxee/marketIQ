@@ -12,6 +12,7 @@ import {
   activateServiceZoneMappingService, deactivateServiceZoneMappingService,
   listPackageCategoryMappingsService, createPackageCategoryMappingService, verifyPackageCategoryMappingService,
   activatePackageCategoryMappingService, deactivatePackageCategoryMappingService,
+  updateWarehouseMappingService, updateServiceZoneMappingService, updatePackageCategoryMappingService,
 } from "./logistics-admin.service.js";
 
 export const listWarehouseMappings = asyncWrapper(async (req, res) => {
@@ -70,3 +71,10 @@ export const activatePackageCategoryMapping = asyncWrapper(async (req, res) =>
   successResponse({ res, statusCode: 200, message: "Package-category mapping activated", data: await activatePackageCategoryMappingService(req.user.id, req.params.id) }));
 export const deactivatePackageCategoryMapping = asyncWrapper(async (req, res) =>
   successResponse({ res, statusCode: 200, message: "Package-category mapping deactivated", data: await deactivatePackageCategoryMappingService(req.user.id, req.params.id) }));
+
+export const updateWarehouseMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Warehouse mapping updated and deactivated pending re-verification", data: await updateWarehouseMappingService(req.user.id, req.params.id, req.body) }));
+export const updateServiceZoneMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Service-zone mapping updated and deactivated pending re-verification", data: await updateServiceZoneMappingService(req.user.id, req.params.id, req.body) }));
+export const updatePackageCategoryMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Package-category mapping updated and deactivated pending re-verification", data: await updatePackageCategoryMappingService(req.user.id, req.params.id, req.body) }));
