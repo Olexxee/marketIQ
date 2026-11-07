@@ -295,6 +295,11 @@ enum LogisticsQuoteStatus {
   REJECTED
 }
 
+enum FulfillmentOwnerMode {
+  SELLER_MANAGED
+  LOGISTICS_PROVIDER_MANAGED
+}
+
 enum LogisticsShipmentStatus {
   PENDING
   BOOKING
@@ -1442,6 +1447,7 @@ model Fulfillment {
   sellerOrderId String
   warehouseId   String?
 
+  ownerMode FulfillmentOwnerMode @default(SELLER_MANAGED)
   type   FulfillmentType
   status FulfillmentStatus @default(PENDING)
 
@@ -1961,15 +1967,20 @@ model LogisticsQuote {
   sellerOrderId String? @unique
   warehouseMappingId String?
 
-  idempotencyKey String @unique
+  // Provider-scoped idempotency and fulfillment identity are required so
+  // multiple provider adapters can safely coexist.
+  idempotencyKey String
+  externalFulfillmentReference String?
   providerQuoteReference String?
   status LogisticsQuoteStatus @default(QUOTED)
 
+  // Legacy selected-price snapshot. Nullable until an option is accepted.
   // Integer kobo; never Decimal/float.
-  customerDeliveryChargeMinor BigInt
-  agreedLogisticsCostMinor BigInt
+  customerDeliveryChargeMinor BigInt?
+  agreedLogisticsCostMinor BigInt?
   currency String @default("NGN")
 
+  selectedOptionId String? @unique
   expiresAt DateTime
   acceptedAt DateTime?
 
@@ -1982,13 +1993,39 @@ model LogisticsQuote {
   seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
   sellerOrder SellerOrder? @relation(fields: [sellerOrderId], references: [id], onDelete: SetNull)
   warehouseMapping LogisticsWarehouseMapping? @relation(fields: [warehouseMappingId], references: [id], onDelete: SetNull)
+  options LogisticsQuoteOption[] @relation("LogisticsQuoteOptions")
+  selectedOption LogisticsQuoteOption? @relation("SelectedLogisticsQuoteOption", fields: [selectedOptionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([providerId, idempotencyKey])
+  @@unique([providerId, providerQuoteReference])
+  @@unique([providerId, externalFulfillmentReference])
   @@index([cartId, sellerId, status])
   @@index([providerId, expiresAt])
   @@index([warehouseMappingId])
+}
+
+model LogisticsQuoteOption {
+  id String @id @default(cuid())
+
+  quoteId String
+  providerOptionReference String
+  customerDeliveryChargeMinor BigInt
+  agreedLogisticsCostMinor BigInt
+  currency String @default("NGN")
+  serviceLevel String?
+  expiresAt DateTime?
+  optionSnapshot Json
+
+  quote LogisticsQuote @relation("LogisticsQuoteOptions", fields: [quoteId], references: [id], onDelete: Cascade)
+  selectedForQuote LogisticsQuote? @relation("SelectedLogisticsQuoteOption")
+
+  createdAt DateTime @default(now())
+
+  @@unique([quoteId, providerOptionReference])
+  @@index([quoteId, expiresAt])
 }
 
 model LogisticsWarehouseMapping {
@@ -2020,11 +2057,11 @@ model LogisticsShipment {
   sellerOrderId String @unique
   fulfillmentId String? @unique
 
-  externalReference String @unique
-  externalBookingReference String? @unique
+  externalReference String
+  externalBookingReference String?
   trackingReference String?
 
-  idempotencyKey String @unique
+  idempotencyKey String
   status LogisticsShipmentStatus @default(PENDING)
 
   customerDeliveryChargeMinor BigInt
@@ -2050,6 +2087,9 @@ model LogisticsShipment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([providerId, externalReference])
+  @@unique([providerId, externalBookingReference])
+  @@unique([providerId, idempotencyKey])
   @@index([providerId, status, updatedAt])
   @@index([trackingReference])
 }
@@ -2071,6 +2111,7 @@ model LogisticsEvent {
   createdAt DateTime @default(now())
 
   @@unique([providerId, externalEventId])
+  @@unique([shipmentId, sequence])
   @@index([shipmentId, occurredAt])
 }
 
@@ -2080,6 +2121,11 @@ model LogisticsWebhookReceipt {
   providerId String
   externalEventId String
   signatureVerified Boolean @default(false)
+  // SHA-256 fingerprint of exact request bytes verified before persistence.
+  // Raw webhook bodies are not retained by default (data minimization).
+  rawBodySha256 String?
+  signatureTimestamp BigInt?
+  signatureVersion String?
   status LogisticsWebhookStatus @default(RECEIVED)
   payload Json
   receivedAt DateTime @default(now())

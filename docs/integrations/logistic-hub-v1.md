@@ -174,3 +174,23 @@ Do not invent events for pickup scheduling, out-for-delivery, delivery failure, 
 ## 7. Release gates
 
 Do not enable the provider in production until LI-02B–LI-02F tests pass, the MarketIQ integration client/credential and billing agreement are provisioned in Logistic Hub, a verified warehouse/service-zone mapping exists, Render worker and webhook configuration are confirmed, and staging proves quote → checkout → Paystack → booking → tracking end to end. Manual logistics payable reconciliation remains the v1 operating mode.
+
+## LI-02B persistence implementation
+
+The LI-02B schema/migration work is tracked on `feat/li-02b-logistics-persistence`. It is intentionally limited to persistence foundations; checkout, Paystack and worker runtime behavior are unchanged.
+
+### Persistence decisions
+
+- `LogisticsQuoteOption` stores each provider option independently, including the provider's opaque option reference, exact integer-kobo amounts, currency, optional expiry/service-level metadata and immutable option snapshot.
+- `LogisticsQuote.selectedOptionId` records the accepted option. The existing quote amount fields are nullable until selection and remain a legacy selected-price snapshot for later checkout integration.
+- `LogisticsQuote.externalFulfillmentReference` stores the stable provider-scoped fulfillment reference created before checkout and reused for booking.
+- Quote idempotency keys, provider quote references, external fulfillment references, shipment idempotency keys and external shipment references are scoped by provider. Existing rows are retained; the old global unique indexes are replaced with provider-scoped indexes.
+- Event sequence is unique per shipment when present, and positive when non-null. Provider event IDs remain unique within provider.
+- Webhook receipts store the SHA-256 digest of the exact raw request body plus signature timestamp/version metadata. Raw body bytes are not retained by default to reduce PII retention. HMAC must be verified over raw bytes before a receipt is persisted.
+- `Fulfillment.ownerMode` distinguishes `SELLER_MANAGED` from `LOGISTICS_PROVIDER_MANAGED`. Service-level enforcement is deferred to the lifecycle phases.
+
+### Migration safety and scope
+
+Migration `20261107150000_li_02b_logistics_persistence` is forward-only. It preserves existing quotes, shipments, events and receipts, and defaults existing fulfillment records to `SELLER_MANAGED`. It does not alter checkout totals, payment behavior, fulfillment transitions or worker runtime.
+
+The next phase, LI-02C, will implement quote option acceptance and atomic checkout snapshots. No external Logistic Hub calls will be made inside a MarketIQ checkout transaction.
