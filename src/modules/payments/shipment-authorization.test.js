@@ -49,6 +49,8 @@ test("builds a versioned shipment authorization using exact integer minor units"
   assert.equal(event.payload.paymentStatus, "VERIFIED");
   assert.equal(event.payload.paymentAmountMinor, "11000");
   assert.equal(event.payload.deliveryAmountMinor, "1000");
+  assert.equal(typeof event.payload.paymentAmountMinor, "string");
+  assert.equal(typeof event.payload.deliveryAmountMinor, "string");
   assert.equal(event.payload.acceptedQuoteReference, "hub_quote_1");
   assert.equal(event.payload.acceptedOptionReference, "hub_option_1");
   assert.equal(event.payload.billingAgreementVersion, "2026-01");
