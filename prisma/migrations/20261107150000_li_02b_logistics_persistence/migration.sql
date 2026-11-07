@@ -46,6 +46,9 @@ ALTER TABLE "LogisticsQuoteOption"
   FOREIGN KEY ("quoteId") REFERENCES "LogisticsQuote"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
 
+CREATE UNIQUE INDEX "LogisticsQuote_selectedOptionId_key"
+  ON "LogisticsQuote"("selectedOptionId");
+
 ALTER TABLE "LogisticsQuote"
   ADD CONSTRAINT "LogisticsQuote_selectedOptionId_fkey"
   FOREIGN KEY ("selectedOptionId") REFERENCES "LogisticsQuoteOption"("id")
