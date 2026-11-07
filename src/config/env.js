@@ -74,5 +74,12 @@ export const env = {
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM,
   FRONTEND_URL: process.env.FRONTEND_URL,
+  logisticHub: {
+    baseUrl: process.env.LOGISTIC_HUB_BASE_URL,
+    keyId: process.env.LOGISTIC_HUB_CLIENT_KEY_ID,
+    secret: process.env.LOGISTIC_HUB_CLIENT_SECRET,
+    billingAgreementReference: process.env.LOGISTIC_HUB_BILLING_AGREEMENT_REFERENCE,
+    timeoutMs: Number(process.env.LOGISTIC_HUB_TIMEOUT_MS) || 8000,
+  },
   paystack: {},
 };

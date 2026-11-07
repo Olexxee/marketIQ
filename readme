@@ -56,11 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A and LI-02B complete; LI-02C implementation in progress.**
+**LI-01, LI-02A and LI-02B complete; LI-02C quote acquisition and checkout completion in progress.**
 
 **LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
-MarketIQ will integrate with Logistic Hub as an external logistics provider. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+MarketIQ will integrate with Logistic Hub as an external logistics provider.
+
+The LI-02C implementation now includes the authenticated Logistic Hub client, quote request orchestration, local quote/option persistence, buyer quote retrieval and option acceptance routes, verified pickup/destination/category mapping checks, package conversion, and checkout revalidation. The feature remains under CI review; do not deploy until the PR checks pass and the measurement-unit contract below is confirmed. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
 
 ### Agreed commercial and shipment model
 
@@ -133,6 +135,18 @@ The shipment record is expected to retain:
 All monetary values must use integer minor units. Floating-point money calculations are prohibited.
 
 The exact schema, relations, indexes, deletion behavior and event retention policy will be finalized during LI-02 after inspecting the current Prisma schema and existing fulfilment lifecycle. Do not add speculative columns before that review.
+
+
+### Buyer quote API (LI-02C)
+
+- `POST /api/checkout/logistics/quotes` — authenticated, verified-email buyer request with `{ sellerId, addressId, customerName?, customerPhone? }` and an `Idempotency-Key` header. Recipient details must match checkout.
+- `GET /api/checkout/logistics/quotes/:quoteId` — retrieve the buyer-owned quote and options.
+- `POST /api/checkout/logistics/quotes/:quoteId/options/:optionId/accept` — accept exactly one provider option; acceptance is idempotent against the provider.
+- Quotes require one active, verified pickup warehouse mapping for the seller, verified destination coordinates, an explicit destination LGA service-zone mapping, and active verified product-category mappings. Ambiguous or missing mappings fail closed.
+- Until a packing model exists, quote requests reject cart lines with quantity greater than one rather than guessing whether units are consolidated or shipped separately.
+- Checkout must use the same saved delivery address used to request the quote. Address coordinate changes, inactive pickup mappings, expiry, or price snapshot mismatch reject checkout.
+
+**Measurement-unit caveat:** the current Prisma variant schema stores decimal `weight`, `length`, `width` and `height` without unit metadata. The quote adapter currently interprets weight as kilograms and dimensions as centimetres, then rounds upward to integer grams/millimetres. This interpretation must be verified against the seller UI/data-entry contract before production quoting; otherwise add explicit unit metadata and a migration rather than guessing.
 
 ## Logistic Hub changes required
 

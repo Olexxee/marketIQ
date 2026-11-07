@@ -8,7 +8,7 @@ import { reserveInventoryForOrderItem } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
-import { fromMinorUnits } from "../logistics/money.js";
+import { fromMinorUnits, toMinorUnits } from "../logistics/money.js";
 import {
   createOrder,
   findAcceptedLogisticsQuotesForCheckout,
@@ -57,15 +57,28 @@ const assertItemIsCheckoutable = (item) => {
 };
 
 const assertCartPriceIsCurrent = (item) => {
-  const snapshotPrice = Number(item.unitPriceSnapshot);
-  const currentPrice = Number(item.variant.price);
+  const snapshotPriceMinor = toMinorUnits(item.unitPriceSnapshot.toString());
+  const currentPriceMinor = toMinorUnits(item.variant.price.toString());
 
-  if (snapshotPrice !== currentPrice) {
+  if (snapshotPriceMinor !== currentPriceMinor) {
     throw new ConflictError(
       `Price changed for "${item.variant.product.name}". Please review your cart before checkout.`
     );
   }
 };
+
+const buildCartSnapshot = (items) => items.map(item => ({
+  cartItemId: item.id,
+  variantId: item.variantId,
+  quantity: item.quantity,
+  unitPriceSnapshot: item.unitPriceSnapshot.toString(),
+  currentUnitPrice: item.variant.price.toString(),
+  categoryId: item.variant.product.categoryId,
+  weight: item.variant.weight.toString(),
+  length: item.variant.length?.toString() ?? null,
+  width: item.variant.width?.toString() ?? null,
+  height: item.variant.height?.toString() ?? null,
+})).sort((a, b) => a.cartItemId.localeCompare(b.cartItemId));
 
 const groupItemsBySeller = (items) => {
   const groups = new Map();
@@ -79,10 +92,10 @@ const groupItemsBySeller = (items) => {
   return Array.from(groups.values());
 };
 
-const calculateSellerSubtotal = (items) => {
+const calculateSellerSubtotalMinor = (items) => {
   return items.reduce(
-    (sum, item) => sum + Number(item.unitPriceSnapshot) * item.quantity,
-    0
+    (sum, item) => sum + BigInt(toMinorUnits(item.unitPriceSnapshot.toString())) * BigInt(item.quantity),
+    0n,
   );
 };
 
@@ -100,6 +113,10 @@ const resolveDelivery = async (userId, payload, tx) => {
       deliveryCityId: address.cityId,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone ?? address.phone,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      coordinatesVerifiedAt: address.coordinatesVerifiedAt,
+      coordinatesSource: address.coordinatesSource,
     };
   }
 
@@ -118,7 +135,7 @@ const resolveDelivery = async (userId, payload, tx) => {
 // ORDER CREATION
 // ============================================================
 
-const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderSubtotal, shippingTotal, payload, tx) => {
+const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderSubtotalMinor, shippingTotalMinor, payload, tx) => {
   return createOrder(
     {
       orderNumber: generateOrderNumber(),
@@ -135,10 +152,10 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
       deliveryStateName: deliverySnapshot.stateName,
       deliveryLgaName: deliverySnapshot.lgaName,
       deliveryCityName: deliverySnapshot.cityName,
-      subtotal: orderSubtotal,
-      shippingTotal,
-      tax: 0,
-      total: orderSubtotal + Number(shippingTotal),
+      subtotal: fromMinorUnits(orderSubtotalMinor),
+      shippingTotal: fromMinorUnits(shippingTotalMinor),
+      tax: "0.00",
+      total: fromMinorUnits(orderSubtotalMinor + shippingTotalMinor),
       status: "PENDING",
       paymentStatus: "PENDING",
       paymentExpiresAt: calculatePaymentExpiresAt(),
@@ -148,7 +165,7 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
   );
 };
 
-const createSellerMarketplaceOrder = async (orderId, group, subtotal, shippingTotal, tx) => {
+const createSellerMarketplaceOrder = async (orderId, group, subtotalMinor, shippingTotalMinor, tx) => {
   const sellerLocationSnapshot =
     group.seller.stateId || group.seller.lgaId
       ? await findLocationSnapshot(
@@ -164,9 +181,9 @@ const createSellerMarketplaceOrder = async (orderId, group, subtotal, shippingTo
     {
       orderId,
       sellerId: group.seller.id,
-      subtotal,
-      shippingTotal,
-      total: subtotal + Number(shippingTotal),
+      subtotal: fromMinorUnits(subtotalMinor),
+      shippingTotal: fromMinorUnits(shippingTotalMinor),
+      total: fromMinorUnits(subtotalMinor + shippingTotalMinor),
       status: "PENDING",
       sellerStateId: group.seller.stateId ?? null,
       sellerLgaId: group.seller.lgaId ?? null,
@@ -187,8 +204,9 @@ const createMarketplaceOrderItems = async (order, sellerOrder, group, tx) => {
   );
 
   for (const cartItem of sortedItems) {
-    const unitPrice = Number(cartItem.unitPriceSnapshot);
-    const lineTotal = unitPrice * cartItem.quantity;
+    const lineTotal = fromMinorUnits(
+      BigInt(toMinorUnits(cartItem.unitPriceSnapshot.toString())) * BigInt(cartItem.quantity),
+    );
 
     const orderItem = await createOrderItem(
       {
@@ -240,7 +258,7 @@ const recordOrderCreatedActivity = async (userId, order, sellerGroups, itemCount
       metadata: {
         orderId: order.id,
         orderNumber: order.orderNumber,
-        subtotal: Number(order.subtotal),
+        subtotal: order.subtotal.toString(),
         sellerCount: sellerGroups.length,
         itemCount,
       },
@@ -290,6 +308,9 @@ export const checkoutService = async (userId, payload) => {
     if (new Set(quoteIds).size !== quoteIds.length) {
       throw new BadRequestError("Duplicate logistics quote IDs are not allowed.");
     }
+    if (quoteIds.length && !payload.addressId) {
+      throw new BadRequestError("Logistics delivery quotes require the same saved delivery address used to request them.");
+    }
     const logisticsQuotes = await findAcceptedLogisticsQuotesForCheckout(quoteIds, cart.id, tx);
     if (logisticsQuotes.length !== quoteIds.length) {
       throw new ConflictError("One or more delivery quotes are invalid, already used, or no longer accepted.");
@@ -299,6 +320,24 @@ export const checkoutService = async (userId, payload) => {
       if (!quote.provider?.isActive || quote.currency !== "NGN" ||
           !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
           quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
+          !quote.warehouseMapping?.isActive || !quote.warehouseMapping?.verifiedAt ||
+          !quote.warehouseMapping?.warehouse?.isActive ||
+          !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
+          !quote.warehouseMapping?.warehouse?.coordinatesSource ||
+          Number(quote.requestSnapshot?.request?.pickup?.latitude) !== Number(quote.warehouseMapping.warehouse.latitude) ||
+          Number(quote.requestSnapshot?.request?.pickup?.longitude) !== Number(quote.warehouseMapping.warehouse.longitude) ||
+          quote.requestSnapshot?.request?.pickupAddress !== quote.warehouseMapping.warehouse.address ||
+          quote.requestSnapshot?.addressId !== payload.addressId ||
+          quote.requestSnapshot?.destinationLgaId !== delivery.deliveryLgaId ||
+          quote.requestSnapshot?.request?.destinationAddress !== delivery.deliveryAddress ||
+          quote.requestSnapshot?.request?.recipientName !== delivery.customerName ||
+          quote.requestSnapshot?.request?.recipientPhone !== delivery.customerPhone ||
+          quote.requestSnapshot?.request?.pickupServiceZoneId !== quote.warehouseMapping?.externalServiceZoneId ||
+          JSON.stringify(quote.requestSnapshot?.cartSnapshot ?? []) !== JSON.stringify(buildCartSnapshot(
+            cart.items.filter(item => item.variant.product.seller.id === quote.sellerId),
+          )) ||
+          Number(quote.requestSnapshot?.request?.destination?.latitude) !== Number(delivery.latitude) ||
+          Number(quote.requestSnapshot?.request?.destination?.longitude) !== Number(delivery.longitude) ||
           quote.customerDeliveryChargeMinor !== quote.selectedOption.customerDeliveryChargeMinor ||
           quote.agreedLogisticsCostMinor !== quote.selectedOption.agreedLogisticsCostMinor) {
         throw new ConflictError("A selected delivery quote has expired or its price snapshot is inconsistent.");
@@ -311,15 +350,15 @@ export const checkoutService = async (userId, payload) => {
     }
 
     // 5. Calculate merchandise and delivery totals independently.
-    let orderSubtotal = 0;
-    let orderShippingTotal = 0;
+    let orderSubtotalMinor = 0n;
+    let orderShippingTotalMinor = 0n;
     const sellerTotals = sellerGroups.map((group) => {
-      const subtotal = calculateSellerSubtotal(group.items);
-      orderSubtotal += subtotal;
+      const subtotalMinor = calculateSellerSubtotalMinor(group.items);
+      orderSubtotalMinor += subtotalMinor;
       const quote = quotesBySeller.get(group.seller.id);
-      const shippingTotal = quote ? fromMinorUnits(quote.customerDeliveryChargeMinor) : "0.00";
-      orderShippingTotal += Number(shippingTotal);
-      return { sellerId: group.seller.id, subtotal, shippingTotal, quoteId: quote?.id ?? null };
+      const shippingTotalMinor = quote ? quote.customerDeliveryChargeMinor : 0n;
+      orderShippingTotalMinor += shippingTotalMinor;
+      return { sellerId: group.seller.id, subtotalMinor, shippingTotalMinor, quoteId: quote?.id ?? null };
     });
 
     // 6. Create parent order
@@ -327,8 +366,8 @@ export const checkoutService = async (userId, payload) => {
       userId,
       delivery,
       deliverySnapshot,
-      orderSubtotal,
-      orderShippingTotal,
+      orderSubtotalMinor,
+      orderShippingTotalMinor,
       payload,
       tx,
     );
@@ -342,8 +381,8 @@ export const checkoutService = async (userId, payload) => {
       const sellerOrder = await createSellerMarketplaceOrder(
         order.id,
         group,
-        sellerTotal.subtotal,
-        sellerTotal.shippingTotal,
+        sellerTotal.subtotalMinor,
+        sellerTotal.shippingTotalMinor,
         tx,
       );
 
@@ -371,7 +410,7 @@ export const checkoutService = async (userId, payload) => {
           orderId: order.id,
           orderNumber: order.orderNumber,
           buyerId: userId,
-          total: Number(order.total),
+          total: order.total.toString(),
           currency: "NGN",
           itemCount: cart.items.length,
           sellerCount: sellerGroups.length,
