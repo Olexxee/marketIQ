@@ -5,6 +5,7 @@ import {
 import { env } from "../../config/env.js";
 import { buildVerifiedLogisticsLocation } from "./location.js";
 import { toMinorUnits } from "./money.js";
+import { scaleMeasurementCeil } from "./measurement.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import {
   acceptLocalQuoteOption,
@@ -20,22 +21,6 @@ import {
 } from "./logistics.db.js";
 
 const hash = value => createHash("sha256").update(value).digest("hex");
-
-const scaledCeil = (value, multiplier, label) => {
-  if (value === null || value === undefined) return undefined;
-  const raw = value.toString().trim();
-  const match = /^(0|[1-9]\d*)(?:\.(\d+))?$/.exec(raw);
-  if (!match) throw new ConflictError(`Product ${label} must be a non-negative decimal measurement.`);
-  const fraction = match[2] ?? "";
-  const denominator = 10n ** BigInt(fraction.length);
-  const numerator = BigInt(match[1]) * BigInt(multiplier) * denominator +
-    BigInt(fraction || "0") * BigInt(multiplier);
-  const scaled = (numerator + denominator - 1n) / denominator;
-  if (scaled > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new ConflictError(`Product ${label} exceeds the supported parcel measurement range.`);
-  }
-  return Number(scaled);
-};
 
 const providerClient = provider => createLogisticHubClient({
   config: {
@@ -68,10 +53,10 @@ const buildPackages = (items, categoryMappings) => {
       if (packages.length >= 50) {
         throw new BadRequestError("A Logistic Hub quote supports at most 50 packages per seller shipment.");
       }
-      const weightGrams = scaledCeil(variant.weight, 1000, "weight");
-      const lengthMm = scaledCeil(variant.length, 10, "length");
-      const widthMm = scaledCeil(variant.width, 10, "width");
-      const heightMm = scaledCeil(variant.height, 10, "height");
+      const weightGrams = scaleMeasurementCeil(variant.weight, 1000, "weight");
+      const lengthMm = scaleMeasurementCeil(variant.length, 10, "length");
+      const widthMm = scaleMeasurementCeil(variant.width, 10, "width");
+      const heightMm = scaleMeasurementCeil(variant.height, 10, "height");
       packages.push({
         externalPackageRef: `${item.id}-${index + 1}`,
         packageCategory: mapping.externalPackageCategory,
