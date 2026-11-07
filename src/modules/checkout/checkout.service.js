@@ -308,7 +308,9 @@ export const checkoutService = async (userId, payload) => {
           !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
           quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
           !quote.warehouseMapping?.isActive || !quote.warehouseMapping?.verifiedAt ||
+          !quote.warehouseMapping?.warehouse?.isActive ||
           !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
+          !quote.warehouseMapping?.warehouse?.coordinatesSource ||
           quote.requestSnapshot?.addressId !== payload.addressId ||
           Number(quote.requestSnapshot?.request?.destination?.latitude) !== Number(delivery.latitude) ||
           Number(quote.requestSnapshot?.request?.destination?.longitude) !== Number(delivery.longitude) ||
