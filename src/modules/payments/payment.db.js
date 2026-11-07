@@ -60,6 +60,14 @@ export const findOrderItems = async (orderId, tx) => {
   return dbClient(tx).orderItem.findMany({ where: { orderId } });
 };
 
+export const findSellerOrdersWithLogisticsQuotes = async (orderId, tx) => {
+  return dbClient(tx).sellerOrder.findMany({
+    where: { orderId },
+    include: { logisticsQuote: { include: { selectedOption: true } } },
+    orderBy: { id: "asc" },
+  });
+};
+
 export const updateManySellerOrderStatusByOrder = async (
   orderId,
   status,
