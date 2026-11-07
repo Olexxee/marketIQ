@@ -55,6 +55,7 @@ test("mapping verification requires a meaningful audit note", () => {
 import {
   serviceZoneMappingCreateSchema,
   packageCategoryMappingCreateSchema,
+  warehouseMappingUpdateSchema, serviceZoneMappingUpdateSchema, packageCategoryMappingUpdateSchema,
 } from "./logistics-admin.validation.js";
 
 test("service-zone mapping requires an explicit LGA and provider zone reference", () => {
@@ -70,4 +71,11 @@ test("package-category mapping requires a provider-compatible category reference
   assert.equal(packageCategoryMappingCreateSchema.parse({
     providerId: "c123456789012345678901234", categoryId: "c123456789012345678901235", externalPackageCategory: "PARCEL",
   }).externalPackageCategory, "PARCEL");
+});
+
+test("mapping updates require valid provider references and reject empty payloads", () => {
+  assert.throws(() => warehouseMappingUpdateSchema.parse({}));
+  assert.equal(warehouseMappingUpdateSchema.parse({ externalServiceZoneId: "zone-123" }).externalServiceZoneId, "zone-123");
+  assert.equal(serviceZoneMappingUpdateSchema.parse({ externalServiceZoneId: "zone-123" }).externalServiceZoneId, "zone-123");
+  assert.equal(packageCategoryMappingUpdateSchema.parse({ externalPackageCategory: "PARCEL" }).externalPackageCategory, "PARCEL");
 });
