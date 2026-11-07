@@ -257,6 +257,8 @@ export const listSettlementsService = async ({ status, page = 1, limit = 20 } = 
           select: {
             id: true,
             status: true,
+            subtotal: true,
+            shippingTotal: true,
             total: true,
             seller: { select: { id: true, businessName: true, businessEmail: true, businessPhone: true } },
             order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, disputedAt: true } },
