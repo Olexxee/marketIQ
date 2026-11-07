@@ -56,7 +56,7 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01 and LI-02A complete; LI-02B persistence implementation in progress.**
+**LI-01, LI-02A and LI-02B complete; LI-02C implementation in progress.**
 
 **LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
@@ -184,7 +184,7 @@ A future checkout improvement should validate delivery coverage and calculate/co
 
 ## LI-02 implementation progress
 
-**In progress — persistence foundation and monetary boundary.** The first implementation slice adds the following records:
+**Completed — persistence foundation and monetary boundary.** The initial implementation adds the following records:
 
 - `LogisticsProvider`: provider identity and non-secret configuration metadata.
 - `LogisticsWarehouseMapping`: explicit admin-managed mapping from a MarketIQ warehouse to a provider pickup reference; mappings are inactive until verified.
@@ -194,7 +194,7 @@ A future checkout improvement should validate delivery coverage and calculate/co
 
 The schema and migrations are committed. Exact naira-decimal-string to kobo conversion is implemented with unit tests added; the Paystack initialization path now uses it instead of multiplying a JavaScript floating-point number. The LI-02 location foundation adds verified pickup/destination coordinate fields and a strict snapshot builder. The admin logistics controls now add admin-only coordinate verification for warehouses and delivery addresses, provider warehouse mapping CRUD, mapping verification, and explicit activation/deactivation. Mapping activation requires an active provider, active warehouse, verified mapping and verified warehouse coordinates. Updating warehouse coordinates automatically deactivates existing active mappings and clears their mapping verification to force re-review. Validator tests have been added; test execution and CI status are still pending.
 
-**Not yet implemented:** provider quote API calls, checkout quote acceptance/expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, integration authentication, and inbound webhook processing. Admin controls do not geocode addresses, verify external provider records automatically, or enable live quoting. Do not enable or advertise live Logistic Hub checkout until those controls are complete and CI/migrations pass.
+**LI-02C mapping prerequisite added in the current branch:** explicit admin-managed provider service-zone mappings per MarketIQ LGA and provider package-category mappings per MarketIQ product category. Pickup warehouse mappings now also require the provider's pickup service-zone reference. Each mapping is created inactive, separately verified with an audit note, and activated only while its provider is active. This prevents MarketIQ from deriving Logistic Hub service-zone IDs or parcel categories from geographic labels/product names. The migration and validation tests are included in the branch. These controls do not geocode addresses or verify provider-side values automatically; an administrator must confirm the external references against Logistic Hub configuration.\n\n**Still outstanding:** provider quote API calls, package measurement/unit normalization, buyer quote request/acceptance endpoints, cart/destination snapshot binding, checkout quote-set completeness and expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, and inbound webhook processing. Do not enable or advertise live Logistic Hub checkout until these controls, provider credentials, migrations and CI pass.
 
 **Verified-location foundation added on the LI-02 branch:** `Address` and `Warehouse` now support latitude/longitude, verification timestamp and verification source. The migration enforces coordinate pairs, geographic ranges and verification metadata consistency. `buildVerifiedLogisticsLocation` rejects unverified or invalid locations and produces a normalized immutable location snapshot for future quote/booking requests. It does not geocode addresses or mark coordinates verified automatically.
 
