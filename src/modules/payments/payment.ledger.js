@@ -1,4 +1,98 @@
+import { buildOrderPaymentLedgerAllocation } from "./payment.ledger-allocation.js";
+
 export const recordPaymentCaptureLedger = async ({ payment, orderId, refundLiability = false }, tx) => {
+  let entries;
+  let metadata = {
+    provider: payment.provider,
+    paymentReference: payment.reference,
+    refundLiability,
+  };
+
+  if (refundLiability) {
+    entries = [
+      {
+        account: "PAYMENT_CLEARING",
+        direction: "DEBIT",
+        amount: payment.amount,
+        currency: payment.currency,
+      },
+      {
+        account: "BUYER_REFUND",
+        direction: "CREDIT",
+        amount: payment.amount,
+        currency: payment.currency,
+      },
+    ];
+  } else if (orderId) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        subtotal: true,
+        shippingTotal: true,
+        tax: true,
+        sellerOrders: {
+          select: {
+            id: true,
+            subtotal: true,
+            shippingTotal: true,
+            logisticsQuote: {
+              select: {
+                customerDeliveryChargeMinor: true,
+                agreedLogisticsCostMinor: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const allocation = order && buildOrderPaymentLedgerAllocation({
+      paymentAmount: payment.amount,
+      orderSubtotal: order.subtotal,
+      orderShippingTotal: order.shippingTotal,
+      orderTax: order.tax,
+      sellerOrders: order.sellerOrders,
+      currency: payment.currency,
+    });
+
+    if (allocation) {
+      entries = allocation.entries;
+      metadata.allocation = allocation.allocation;
+    } else {
+      // Preserve the pre-existing non-marketplace order path when it has no
+      // SellerOrder records to allocate.
+      entries = [
+        {
+          account: "PAYMENT_CLEARING",
+          direction: "DEBIT",
+          amount: payment.amount,
+          currency: payment.currency,
+        },
+        {
+          account: "SELLER_PAYABLE",
+          direction: "CREDIT",
+          amount: payment.amount,
+          currency: payment.currency,
+        },
+      ];
+    }
+  } else {
+    entries = [
+      {
+        account: "PAYMENT_CLEARING",
+        direction: "DEBIT",
+        amount: payment.amount,
+        currency: payment.currency,
+      },
+      {
+        account: "BUYER_REFUND",
+        direction: "CREDIT",
+        amount: payment.amount,
+        currency: payment.currency,
+      },
+    ];
+  }
+
   return tx.ledgerTransaction.create({
     data: {
       type: "PAYMENT_CAPTURE",
@@ -8,27 +102,8 @@ export const recordPaymentCaptureLedger = async ({ payment, orderId, refundLiabi
       paymentId: payment.id,
       amount: payment.amount,
       currency: payment.currency,
-      metadata: {
-        provider: payment.provider,
-        paymentReference: payment.reference,
-        refundLiability,
-      },
-      entries: {
-        create: [
-          {
-            account: "PAYMENT_CLEARING",
-            direction: "DEBIT",
-            amount: payment.amount,
-            currency: payment.currency,
-          },
-          {
-            account: refundLiability ? "BUYER_REFUND" : "SELLER_PAYABLE",
-            direction: "CREDIT",
-            amount: payment.amount,
-            currency: payment.currency,
-          },
-        ],
-      },
+      metadata,
+      entries: { create: entries },
     },
   });
 };
