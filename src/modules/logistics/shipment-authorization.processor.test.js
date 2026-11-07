@@ -117,7 +117,7 @@ test("creates a shipment with the exact accepted quote and payment attestation",
       createShipment: async (body, key) => {
         captured.body = body;
         captured.key = key;
-        return { shipment: { id: "hub-id", reference: "HUB-REF-1" }, replay: false };
+        return { shipment: { id: "hub-id", reference: "HUB-REF-1", externalFulfillmentReference: "mqi-fulfillment-1" }, replay: false };
       },
     }),
   });
