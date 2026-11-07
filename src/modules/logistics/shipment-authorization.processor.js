@@ -41,6 +41,7 @@ const validateContext = (event, sellerOrder) => {
   const orderPaymentAmountMinor = requireMinorAmount(payload.paymentAmountMinor, "payment amount");
   if (
     payload.paymentStatus !== "VERIFIED" ||
+    typeof payload.paymentProvider !== "string" || payload.paymentProvider.trim().length < 2 ||
     !payload.paymentReference ||
     !payload.paymentVerifiedAt ||
     Number.isNaN(Date.parse(payload.paymentVerifiedAt))
@@ -88,9 +89,14 @@ const validateContext = (event, sellerOrder) => {
   };
 };
 
-const normalizeProviderShipment = response => {
+const normalizeProviderShipment = (response, expectedExternalReference) => {
   const shipment = response?.shipment ?? response;
-  if (!shipment || typeof shipment.id !== "string" || typeof shipment.reference !== "string") {
+  if (
+    !shipment ||
+    typeof shipment.id !== "string" ||
+    typeof shipment.reference !== "string" ||
+    shipment.externalFulfillmentReference !== expectedExternalReference
+  ) {
     throw new ShipmentAuthorizationError("Logistic Hub returned a shipment response without its required references.", {
       code: "INVALID_SHIPMENT_RESPONSE",
     });
@@ -159,7 +165,7 @@ export const createShipmentAuthorizationProcessor = ({
     response = await client.createShipment(shipmentRequest, payload.idempotencyKey);
   }
 
-  const providerShipment = normalizeProviderShipment(response);
+  const providerShipment = normalizeProviderShipment(response, payload.externalFulfillmentReference);
   await repository.markLocalLogisticsShipmentBooked({
     sellerOrderId: sellerOrder.id,
     providerShipment,
