@@ -6,6 +6,7 @@ import { env } from "../../config/env.js";
 import { buildVerifiedLogisticsLocation } from "./location.js";
 import { toMinorUnits } from "./money.js";
 import { normalizeVariantMeasurements } from "./measurement.js";
+import { isQuoteOptionActiveAt } from "./quote-lifecycle.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import {
   acceptLocalQuoteOption,
@@ -282,11 +283,17 @@ export const acceptDeliveryQuoteOptionService = async (userId, quoteId, optionId
     if (quote.selectedOptionId === optionId) return presentQuote(quote);
     throw new ConflictError("A different delivery option has already been accepted for this quote.");
   }
-  if (quote.status !== "QUOTED" || quote.expiresAt <= new Date()) {
+  const acceptedAtCandidate = new Date();
+  if (quote.status !== "QUOTED" || !isQuoteOptionActiveAt({
+    quoteExpiresAt: quote.expiresAt,
+  }, acceptedAtCandidate)) {
     throw new ConflictError("This delivery quote has expired or is no longer selectable.");
   }
   const option = quote.options.find(item => item.id === optionId);
-  if (!option || (option.expiresAt && option.expiresAt <= new Date())) {
+  if (!option || !isQuoteOptionActiveAt({
+    quoteExpiresAt: quote.expiresAt,
+    optionExpiresAt: option.expiresAt,
+  }, acceptedAtCandidate)) {
     throw new ConflictError("The selected delivery option is unavailable or expired.");
   }
 
