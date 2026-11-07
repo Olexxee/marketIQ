@@ -56,25 +56,28 @@ const buildPackages = (items, categoryMappings) => {
     if (!mapping) {
       throw new ConflictError(`Product category for "${variant.product.name}" has no verified Logistic Hub package mapping.`);
     }
-    for (let index = 0; index < item.quantity; index += 1) {
-      if (packages.length >= 50) {
-        throw new BadRequestError("A Logistic Hub quote supports at most 50 packages per seller shipment.");
-      }
-      const weightGrams = scaleMeasurementCeil(variant.weight, 1000, "weight");
-      const lengthMm = scaleMeasurementCeil(variant.length, 10, "length");
-      const widthMm = scaleMeasurementCeil(variant.width, 10, "width");
-      const heightMm = scaleMeasurementCeil(variant.height, 10, "height");
-      packages.push({
-        externalPackageRef: `${item.id}-${index + 1}`,
-        packageCategory: mapping.externalPackageCategory,
-        description: variant.product.name.slice(0, 500),
-        ...(weightGrams > 0 ? { weightGrams } : {}),
-        ...(lengthMm > 0 ? { lengthMm } : {}),
-        ...(widthMm > 0 ? { widthMm } : {}),
-        ...(heightMm > 0 ? { heightMm } : {}),
-        declaredValueMinor: String(toMinorUnits(variant.price.toString())),
-      });
+    if (item.quantity !== 1) {
+      throw new ConflictError(
+        `The parcel-packing model does not yet define how to consolidate quantity ${item.quantity} of "${variant.product.name}". Requesting a quote would require an unverified package assumption.`,
+      );
     }
+    if (packages.length >= 50) {
+      throw new BadRequestError("A Logistic Hub quote supports at most 50 packages per seller shipment.");
+    }
+    const weightGrams = scaleMeasurementCeil(variant.weight, 1000, "weight");
+    const lengthMm = scaleMeasurementCeil(variant.length, 10, "length");
+    const widthMm = scaleMeasurementCeil(variant.width, 10, "width");
+    const heightMm = scaleMeasurementCeil(variant.height, 10, "height");
+    packages.push({
+      externalPackageRef: item.id,
+      packageCategory: mapping.externalPackageCategory,
+      description: variant.product.name.slice(0, 500),
+      ...(weightGrams > 0 ? { weightGrams } : {}),
+      ...(lengthMm > 0 ? { lengthMm } : {}),
+      ...(widthMm > 0 ? { widthMm } : {}),
+      ...(heightMm > 0 ? { heightMm } : {}),
+      declaredValueMinor: String(toMinorUnits(variant.price.toString())),
+    });
   }
   return packages;
 };
