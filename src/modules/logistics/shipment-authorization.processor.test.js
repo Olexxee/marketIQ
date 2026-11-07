@@ -87,7 +87,7 @@ test("recovers an existing Hub shipment before attempting creation", async () =>
     clientFactory: () => ({
       getShipmentByExternalReference: async ref => {
         calls.push(["lookup", ref]);
-        return { shipment: { id: "hub-id", reference: "HUB-REF-1" } };
+        return { shipment: { id: "hub-id", reference: "HUB-REF-1", externalFulfillmentReference: "mqi-fulfillment-1" } };
       },
       createShipment: async () => {
         calls.push(["create"]);
