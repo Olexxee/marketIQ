@@ -8,6 +8,7 @@ import { reserveInventoryForOrderItem } from "../inventory/inventory.ledger.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
+import { fromMinorUnits } from "../logistics/money.js";
 import {
   createOrder,
   findAcceptedLogisticsQuotesForCheckout,
@@ -137,7 +138,7 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
       subtotal: orderSubtotal,
       shippingTotal,
       tax: 0,
-      total: orderSubtotal + shippingTotal,
+      total: orderSubtotal + Number(shippingTotal),
       status: "PENDING",
       paymentStatus: "PENDING",
       paymentExpiresAt: calculatePaymentExpiresAt(),
@@ -313,8 +314,8 @@ export const checkoutService = async (userId, payload) => {
       const subtotal = calculateSellerSubtotal(group.items);
       orderSubtotal += subtotal;
       const quote = quotesBySeller.get(group.seller.id);
-      const shippingTotal = quote ? Number(quote.customerDeliveryChargeMinor) / 100 : 0;
-      orderShippingTotal += shippingTotal;
+      const shippingTotal = quote ? fromMinorUnits(quote.customerDeliveryChargeMinor) : "0.00";
+      orderShippingTotal += Number(shippingTotal);
       return { sellerId: group.seller.id, subtotal, shippingTotal, quoteId: quote?.id ?? null };
     });
 
