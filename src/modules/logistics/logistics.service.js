@@ -23,7 +23,7 @@ import {
 const hash = value => createHash("sha256").update(value).digest("hex");
 
 const parseMinorUnits = (value, field) => {
-  if (typeof value !== "string" || !/^(0|[1-9]\\d*)$/.test(value)) {
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) {
     throw new ServiceUnavailableError(`Logistic Hub returned an invalid ${field} amount.`);
   }
   return BigInt(value);
