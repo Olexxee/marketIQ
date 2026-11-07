@@ -7,6 +7,7 @@ const base = () => ({
     id: "payment_1",
     provider: "PAYSTACK",
     reference: "MQI-ORDER-123",
+    providerReference: "paystack-confirmed-ref",
     amount: "110.00",
     currency: "NGN",
   },
@@ -47,6 +48,7 @@ test("builds a versioned shipment authorization using exact integer minor units"
   assert.equal(event.aggregateId, "seller_order_1");
   assert.equal(event.dedupeKey, "logistics-shipment-authorization:seller_order_1");
   assert.equal(event.payload.paymentStatus, "VERIFIED");
+  assert.equal(event.payload.paymentReference, "paystack-confirmed-ref");
   assert.equal(event.payload.paymentAmountMinor, "11000");
   assert.equal(event.payload.deliveryAmountMinor, "1000");
   assert.equal(typeof event.payload.paymentAmountMinor, "string");

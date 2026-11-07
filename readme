@@ -56,13 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A, LI-02B, LI-02C and Phase A acceptance hardening are merged. LI-02D payment-authorization outbox is implemented on a feature branch; both backend CI workflows pass on the current PR head; shipment delivery/retry remains LI-02E.**
+**LI-01, LI-02A, LI-02B, LI-02C and Phase A acceptance hardening are merged. LI-02D payment-authorization outbox is merged. LI-02E embedded shipment authorization worker is implemented on a feature branch pending CI/review; shipment submission is opt-in through `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false` by default.**
 
 **Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
 MarketIQ will integrate with Logistic Hub as an external logistics provider.
 
-LI-02C quote acquisition, checkout pricing and Phase A acceptance hardening are merged. The merged work adds explicit kg/g and cm/mm measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation; seller settlement capped at merchandise subtotal; payment-capture ledger separation and suspense allocation; quote-expiry, concurrency and retry coverage. LI-02D adds a database-unique outbox dedupe key and atomically records one shipment-authorization event for each SellerOrder with an accepted Logistic Hub quote. The event includes verified payment facts, exact delivery minor units, accepted quote/option references, billing-agreement reference/version snapshot and stable idempotency/correlation identity. It does not call Logistic Hub; the dedicated booking worker is LI-02E. The applications remain independently deployable services with separate databases and domain ownership.
+LI-02C quote acquisition, checkout pricing and Phase A acceptance hardening are merged. The merged work adds explicit kg/g and cm/mm measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation; seller settlement capped at merchandise subtotal; payment-capture ledger separation and suspense allocation; quote-expiry, concurrency and retry coverage. LI-02D adds a database-unique outbox dedupe key and atomically records one shipment-authorization event for each SellerOrder with an accepted Logistic Hub quote. LI-02E adds an opt-in worker embedded in the same MarketIQ Render process: it claims only shipment-authorization events, revalidates the immutable accepted quote/payment snapshot, looks up Hub by external fulfilment reference before create, submits the exact payment attestation with a stable idempotency key, persists the Hub booking reference and retries transient failures with bounded backoff. Permanent failures are dead-lettered in the outbox; the worker remains disabled until explicitly enabled in Render. The applications remain independently deployable services with separate databases and domain ownership.
 
 ### Agreed commercial and shipment model
 
@@ -212,7 +212,7 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 - **Storefront PR #9:** seller entry and editing of packed weight/dimensions with explicit kg/g and cm/mm units, including legacy variant remediation.
 - **Verification:** both backend workflows passed on the PR head with 92/92 tests; the storefront Vercel check passed. The PRs remain open and unmerged.
 
-### Release gates before LI-02D
+### LI-02C acceptance and production release gates
 
 1. Before merging, wire the migration into Render because MarketIQ auto-deploys from `master`. Set the Render Start Command to `npx --yes prisma@6.19.0 migrate deploy && node src/server.js` (or disable auto-deploy, merge the code, apply the migration with `npm run prisma:migrate:deploy` against the production `DATABASE_URL`, then redeploy). The current `node src/server.js` command does not migrate. Never use `prisma migrate dev` in production.
 2. Merge/deploy the MarketIQ backend first and verify the migration and health check. Then deploy the storefront PR immediately. Pause seller variant create/edit operations during this short gap: the new backend requires package measurements while the old UI does not send them.
@@ -220,6 +220,6 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 4. Run the complete staged quote → option acceptance → checkout → Paystack verification flow against configured Logistic Hub credentials.
 5. Reconcile historical settlements/refunds recorded under the old gross-total allocation. This change does not rewrite historical ledger entries.
 
-Only after those gates pass should LI-02D implement the payment-verification transaction and durable shipment-authorization outbox. MarketIQ payment success must remain independent of Logistic Hub availability.
+LI-02D is now merged. These configured-Hub staging checks remain release gates before enabling LI-02E shipment submission in production. MarketIQ payment success remains independent of Logistic Hub availability.
 
 No production Render configuration, production database migration or deployment has been changed by these PRs.
