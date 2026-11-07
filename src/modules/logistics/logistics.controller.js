@@ -1,3 +1,4 @@
+import { BadRequestError } from "../../classes/errorClasses.js";
 import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { successResponse } from "../../lib/response.js";
 import {
@@ -9,15 +10,11 @@ import {
 const requireIdempotencyKey = (req) => {
   const key = req.get("idempotency-key")?.trim();
   if (!key || key.length < 8 || key.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(key)) {
-    const { BadRequestError } = awaitImportError();
     throw new BadRequestError("A valid Idempotency-Key header (8–128 characters) is required.");
   }
   return key;
 };
 
-function awaitImportError() {
-  return { BadRequestError: globalThis.__marketIqBadRequestError };
-}
 
 export const createDeliveryQuote = asyncWrapper(async (req, res) => {
   const quote = await createDeliveryQuoteService(req.user.id, req.body, requireIdempotencyKey(req));
