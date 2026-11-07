@@ -137,6 +137,12 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
   if (!destinationZone) throw new ConflictError("No verified Logistic Hub service-zone mapping exists for the delivery address LGA.");
 
   const warehouseMapping = warehouseMappings[0];
+  if (typeof warehouseMapping.warehouse.address !== "string" || warehouseMapping.warehouse.address.trim().length < 3) {
+    throw new ConflictError("The mapped pickup warehouse must have a complete address before quoting.");
+  }
+  if (typeof address.fullName !== "string" || typeof address.phone !== "string" || address.phone.trim().length < 7) {
+    throw new ConflictError("The delivery address must contain a valid recipient name and phone number.");
+  }
   const pickup = buildVerifiedLogisticsLocation(warehouseMapping.warehouse, "Pickup");
   const packages = buildPackages(cart.items, categoryMappings);
   const externalReference = `mqi-${hash(`${cart.id}:${sellerId}:${addressId}:${idempotencyKey}`).slice(0, 48)}`;
@@ -198,7 +204,9 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
     optionSnapshot: option,
   }));
   const status = quoteSession.status === "QUOTED" && options.length > 0 ? "QUOTED" : "REJECTED";
-  const quote = await createQuoteWithOptions({
+  let quote;
+  try {
+    quote = await createQuoteWithOptions({
     providerId: provider.id,
     cartId: cart.id,
     sellerId,
@@ -215,7 +223,18 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
     acceptedAt: null,
     requestSnapshot,
     responseSnapshot: providerResponse,
-  }, options);
+    }, options);
+  } catch (error) {
+    if (error?.code !== "P2002") throw error;
+    const replayed = await findQuoteByIdempotency(provider.id, idempotencyKey);
+    if (
+      replayed &&
+      replayed.cartId === cart.id &&
+      replayed.sellerId === sellerId &&
+      replayed.requestSnapshot?.payloadHash === requestSnapshot.payloadHash
+    ) return presentQuote(replayed);
+    throw new ConflictError("The Idempotency-Key was already used for a different delivery quote request.");
+  }
   return presentQuote(quote);
 };
 
