@@ -100,7 +100,7 @@ test("creates integration shipments with the exact idempotency key", async () =>
       return {
         ok: true,
         status: 201,
-        json: async () => ({ success: true, data: { shipment: { id: "hub-id", reference: "HUB-REF-1" } } }),
+        json: async () => ({ success: true, data: { shipment: { id: "hub-id", reference: "HUB-REF-1", externalFulfillmentReference: "mqi-fulfilment-1" } } }),
       };
     },
   });
@@ -131,7 +131,7 @@ test("recovers a shipment by external fulfilment reference and treats only 404 a
     config,
     fetchImpl: async url => {
       capturedUrl = url;
-      return { ok: true, status: 200, json: async () => ({ success: true, data: { shipment: { id: "hub-id" } } }) };
+      return { ok: true, status: 200, json: async () => ({ success: true, data: { shipment: { id: "hub-id", externalFulfillmentReference: "mqi/ref 1" } } }) };
     },
   });
   const found = await foundClient.getShipmentByExternalReference("mqi/ref 1");
