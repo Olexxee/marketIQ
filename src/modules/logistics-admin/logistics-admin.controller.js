@@ -8,6 +8,10 @@ import {
   deactivateWarehouseMappingService,
   verifyWarehouseCoordinatesService,
   verifyAddressCoordinatesService,
+  listServiceZoneMappingsService, createServiceZoneMappingService, verifyServiceZoneMappingService,
+  activateServiceZoneMappingService, deactivateServiceZoneMappingService,
+  listPackageCategoryMappingsService, createPackageCategoryMappingService, verifyPackageCategoryMappingService,
+  activatePackageCategoryMappingService, deactivatePackageCategoryMappingService,
 } from "./logistics-admin.service.js";
 
 export const listWarehouseMappings = asyncWrapper(async (req, res) => {
@@ -44,3 +48,25 @@ export const verifyAddressCoordinates = asyncWrapper(async (req, res) => {
   const address = await verifyAddressCoordinatesService(req.user.id, req.params.id, req.body);
   return successResponse({ res, statusCode: 200, message: "Delivery address coordinates verified", data: address });
 });
+
+export const listServiceZoneMappings = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Logistics service-zone mappings retrieved", data: await listServiceZoneMappingsService(req.query) }));
+export const createServiceZoneMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 201, message: "Service-zone mapping created inactive", data: await createServiceZoneMappingService(req.user.id, req.body) }));
+export const verifyServiceZoneMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Service-zone mapping verified", data: await verifyServiceZoneMappingService(req.user.id, req.params.id, req.body) }));
+export const activateServiceZoneMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Service-zone mapping activated", data: await activateServiceZoneMappingService(req.user.id, req.params.id) }));
+export const deactivateServiceZoneMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Service-zone mapping deactivated", data: await deactivateServiceZoneMappingService(req.user.id, req.params.id) }));
+
+export const listPackageCategoryMappings = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Logistics package-category mappings retrieved", data: await listPackageCategoryMappingsService(req.query) }));
+export const createPackageCategoryMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 201, message: "Package-category mapping created inactive", data: await createPackageCategoryMappingService(req.user.id, req.body) }));
+export const verifyPackageCategoryMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Package-category mapping verified", data: await verifyPackageCategoryMappingService(req.user.id, req.params.id, req.body) }));
+export const activatePackageCategoryMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Package-category mapping activated", data: await activatePackageCategoryMappingService(req.user.id, req.params.id) }));
+export const deactivatePackageCategoryMapping = asyncWrapper(async (req, res) =>
+  successResponse({ res, statusCode: 200, message: "Package-category mapping deactivated", data: await deactivatePackageCategoryMappingService(req.user.id, req.params.id) }));
