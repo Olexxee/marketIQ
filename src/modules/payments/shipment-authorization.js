@@ -71,7 +71,9 @@ export const buildShipmentAuthorizationEvent = ({
       sellerOrderId: sellerOrder.id,
       externalFulfillmentReference,
       paymentProvider: payment.provider,
-      paymentReference: payment.reference,
+      // Prefer the provider-confirmed reference; fall back to the initialized
+      // MarketIQ reference only when Paystack echoed the same reference contract.
+      paymentReference: payment.providerReference ?? payment.reference,
       paymentStatus: "VERIFIED",
       paymentVerifiedAt: new Date(verifiedAt).toISOString(),
       paymentAmountMinor: toMinorString(payment.amount, "payment"),
