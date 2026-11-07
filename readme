@@ -143,6 +143,7 @@ The exact schema, relations, indexes, deletion behavior and event retention poli
 - `GET /api/checkout/logistics/quotes/:quoteId` — retrieve the buyer-owned quote and options.
 - `POST /api/checkout/logistics/quotes/:quoteId/options/:optionId/accept` — accept exactly one provider option; acceptance is idempotent against the provider.
 - Quotes require one active, verified pickup warehouse mapping for the seller, verified destination coordinates, an explicit destination LGA service-zone mapping, and active verified product-category mappings. Ambiguous or missing mappings fail closed.
+- Until a packing model exists, quote requests reject cart lines with quantity greater than one rather than guessing whether units are consolidated or shipped separately.
 - Checkout must use the same saved delivery address used to request the quote. Address coordinate changes, inactive pickup mappings, expiry, or price snapshot mismatch reject checkout.
 
 **Measurement-unit caveat:** the current Prisma variant schema stores decimal `weight`, `length`, `width` and `height` without unit metadata. The quote adapter currently interprets weight as kilograms and dimensions as centimetres, then rounds upward to integer grams/millimetres. This interpretation must be verified against the seller UI/data-entry contract before production quoting; otherwise add explicit unit metadata and a migration rather than guessing.
