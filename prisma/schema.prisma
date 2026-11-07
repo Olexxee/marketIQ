@@ -1436,7 +1436,6 @@ model Warehouse {
 
   fulfillments Fulfillment[]
   logisticsMappings LogisticsWarehouseMapping[]
-  logisticsServiceZoneMappings LogisticsServiceZoneMapping[]
 
   @@index([sellerId])
   @@index([locationId])
