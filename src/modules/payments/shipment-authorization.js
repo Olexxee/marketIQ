@@ -2,10 +2,10 @@ import { toMinorUnits } from "../logistics/money.js";
 
 const toMinorString = (value, field) => {
   const result = toMinorUnits(value?.toString?.() ?? String(value));
-  if (!/^(0|[1-9]\d*)$/.test(result)) {
+  if (!Number.isSafeInteger(result) || result < 0) {
     throw new TypeError(`Invalid ${field} minor-unit amount.`);
   }
-  return result;
+  return String(result);
 };
 
 /**
