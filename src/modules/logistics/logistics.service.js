@@ -22,6 +22,13 @@ import {
 
 const hash = value => createHash("sha256").update(value).digest("hex");
 
+const parseMinorUnits = (value, field) => {
+  if (typeof value !== "string" || !/^(0|[1-9]\\d*)$/.test(value)) {
+    throw new ServiceUnavailableError(`Logistic Hub returned an invalid ${field} amount.`);
+  }
+  return BigInt(value);
+};
+
 const providerClient = provider => createLogisticHubClient({
   config: {
     ...env.logisticHub,
@@ -176,18 +183,34 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
   }
 
   const quoteSession = providerResponse.quoteSession;
-  if (!quoteSession?.id || !quoteSession.expiresAt || !Array.isArray(providerResponse.options)) {
-    throw new ServiceUnavailableError("Logistic Hub returned an incomplete quote response.");
+  const quoteExpiry = new Date(quoteSession?.expiresAt ?? NaN);
+  if (
+    !quoteSession?.id ||
+    !Number.isFinite(quoteExpiry.getTime()) ||
+    !["NGN"].includes(quoteSession.currency) ||
+    !Array.isArray(providerResponse.options)
+  ) {
+    throw new ServiceUnavailableError("Logistic Hub returned an incomplete or unsupported quote response.");
   }
-  const options = providerResponse.options.map(option => ({
-    providerOptionReference: option.id,
-    customerDeliveryChargeMinor: BigInt(option.customerChargeMinor),
-    agreedLogisticsCostMinor: BigInt(option.logisticsCostMinor),
-    currency: option.currency,
-    serviceLevel: option.optionCode ?? option.routeMode ?? null,
-    expiresAt: option.expiresAt ? new Date(option.expiresAt) : null,
-    optionSnapshot: option,
-  }));
+  const options = providerResponse.options.map(option => {
+    const optionExpiry = option.expiresAt ? new Date(option.expiresAt) : null;
+    if (
+      !option.id ||
+      option.currency !== quoteSession.currency ||
+      (optionExpiry && !Number.isFinite(optionExpiry.getTime()))
+    ) {
+      throw new ServiceUnavailableError("Logistic Hub returned an invalid quote option.");
+    }
+    return {
+      providerOptionReference: option.id,
+      customerDeliveryChargeMinor: parseMinorUnits(option.customerChargeMinor, "customer delivery charge"),
+      agreedLogisticsCostMinor: parseMinorUnits(option.logisticsCostMinor, "agreed logistics cost"),
+      currency: option.currency,
+      serviceLevel: option.optionCode ?? option.routeMode ?? null,
+      expiresAt: optionExpiry,
+      optionSnapshot: option,
+    };
+  });
   const status = quoteSession.status === "QUOTED" && options.length > 0 ? "QUOTED" : "REJECTED";
   let quote;
   try {
@@ -202,7 +225,7 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
     status,
     customerDeliveryChargeMinor: null,
     agreedLogisticsCostMinor: null,
-    currency: quoteSession.currency ?? "NGN",
+    currency: quoteSession.currency,
     selectedOptionId: null,
     expiresAt: new Date(quoteSession.expiresAt),
     acceptedAt: null,
