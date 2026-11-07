@@ -10,3 +10,4 @@ export const quoteCreateSchema = z.object({
 
 export const quoteParamsSchema = z.object({ quoteId: cuid }).strict();
 export const quoteOptionParamsSchema = z.object({ quoteId: cuid, optionId: cuid }).strict();
+export const shipmentTrackingParamsSchema = z.object({ sellerOrderId: cuid }).strict();

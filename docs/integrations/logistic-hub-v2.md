@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D is merged. LI-02E shipment authorization worker is implemented in the current MarketIQ feature branch pending CI/review. LI-02F inbound events and LI-02G packing evidence/buyer review remain future implementation. The LI-02E worker is opt-in and disabled by default; this document is not proof of production deployment or staging acceptance.
+**Status:** Contract v2. LI-02D and LI-02E are merged. LI-02F signed Hub webhook ingestion and buyer-scoped shipment tracking projection are implemented on the current feature branch pending CI/review. LI-02G packing evidence/buyer review and cancellation coordination remain future implementation. The LI-02E worker remains opt-in and disabled by default; this document is not proof of production deployment or staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -187,12 +187,38 @@ Logistic Hub preserves shipment, custody and packing evidence and provides audit
 
 **Production rollout gate:** MarketIQ Render auto-deploys from `master`, and its current start command does not apply Prisma migrations. Before merging the backend PR, configure the Render Start Command as `npx --yes prisma@6.19.0 migrate deploy && node src/server.js`, or disable auto-deploy and apply `npm run prisma:migrate:deploy` against the production database before redeploying. Deploy the backend first, verify the migration and health, then deploy the storefront; pause seller variant edits during the gap because the new backend requires measurements the old UI does not send. CI migration success applies only to its isolated test database.
 2. LI-02D: **merged** — the shared Paystack success transaction writes one database-deduplicated authorization event for each SellerOrder with an accepted Hub quote. The generic event worker excludes this event type for the dedicated LI-02E worker. No Hub network request is made in the payment path.
-3. LI-02E: **implemented in feature branch, pending CI/review** — embedded MarketIQ server worker claims only shipment-authorization events; validates payment/quote/billing snapshots; performs client-scoped external-reference recovery before shipment creation; uses the stable outbox idempotency key; stores the Hub response locally; retries transient network/408/429/5xx failures with bounded backoff and dead-letters permanent/exhausted failures. Worker is disabled by default using `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false` until production configuration and staging acceptance are approved. Shipment creation remains Hub-owned; booking starts at `AWAITING_PARTNER_ASSIGNMENT`.
-4. LI-02F: signed event receiver and customer-facing tracking projection, including packing-evidence and cancellation coordination events.
-5. LI-02G: four-photo media transfer, buyer review/cancellation policy, operational exception/return flows, reconciliation and staging end-to-end acceptance.
+3. LI-02E: **merged** — embedded MarketIQ server worker claims only shipment-authorization events; validates payment/quote/billing snapshots; performs client-scoped external-reference recovery before shipment creation; uses the stable outbox idempotency key; stores the Hub response locally; retries transient network/408/429/5xx failures with bounded backoff and dead-letters permanent/exhausted failures. Worker is disabled by default using `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false` until production configuration and staging acceptance are approved. Shipment creation remains Hub-owned; booking starts at `AWAITING_PARTNER_ASSIGNMENT`.
+4. LI-02F: **implemented on this feature branch, pending CI/review** — verifies the exact raw request bytes using the Hub's `t=...,v1=...` HMAC-SHA256 contract, timestamp tolerance and matching event headers; deduplicates by provider/event ID; stores a sanitized event ledger and verified receipt; serializes per-shipment sequence projection; exposes buyer-authenticated tracking for the owning order. Hub status is stored separately from MarketIQ booking/payment/order states.
+5. LI-02G: four-photo private media transfer, buyer review/cancellation policy, operational exception/return flows, reconciliation and configured-Hub staging acceptance.
 
 LI-02D events preserve the accepted quote request/option snapshot and the billing-agreement reference/version captured when the quote was requested. Configure `LOGISTIC_HUB_BILLING_AGREEMENT_VERSION` before authorizing live shipments. Events missing required contract facts are retained with explicit blocking reasons and must not be submitted by LI-02E.
 
 LI-02E retry policy uses the existing outbox attempt counter: 5 seconds, 15 seconds, 1 minute, 5 minutes, 15 minutes, then 1 hour between retries, with a maximum of 12 attempts before the event is marked `FAILED`. A retry always looks up the external fulfilment reference first; if the Hub committed a shipment but MarketIQ lost the response, the existing booking is recovered rather than duplicated. A 404 lookup alone permits create; other lookup failures prevent create and are retried or dead-lettered according to provider retryability. Operators can requeue a dead-lettered event only after correcting the cause and confirming that no duplicate shipment exists.
+
+## LI-02F — Signed Hub webhooks and buyer tracking projection
+
+MarketIQ receives Logistic Hub deliveries at:
+
+`POST /api/integrations/logistic-hub/webhook`
+
+The receiver consumes the exact request bytes before JSON parsing. The signing secret is the one-time endpoint secret issued by Logistic Hub webhook management and is configured separately from the outbound integration credential as `LOGISTIC_HUB_WEBHOOK_SECRET`. Default timestamp tolerance is 300 seconds; the accepted configuration range is 30–600 seconds.
+
+The Hub signs `<unix-seconds>.<exact-raw-body>` using HMAC-SHA256. MarketIQ verifies the digest with constant-time comparison and requires the signature timestamp to match `X-Logistic-Hub-Timestamp` and fall within tolerance. It also requires these headers to match the signed envelope:
+
+- `X-Logistic-Hub-Event-Id`
+- `X-Logistic-Hub-Event-Type`
+- `X-Logistic-Hub-Event-Sequence`
+- `X-Logistic-Hub-Timestamp`
+- `X-Logistic-Hub-Signature: t=<unix-seconds>,v1=<hex-digest>`
+
+The v1 JSON envelope is `{ id, type, schemaVersion, occurredAt, sequence, data }`; `data` contains only `shipmentReference` and resulting `status`. The accepted event vocabulary is `shipment.created`, `shipment.partner_assigned`, `shipment.in_transit`, `shipment.custody_handover_confirmed` and `shipment.delivery_leg_completed` (the latter may represent multiple Hub custody milestones).
+
+After signature verification, MarketIQ stores a verified receipt with the SHA-256 body fingerprint (not the raw body), deduplicates by provider + event ID, and appends a sanitized `LogisticsEvent`. A shipment-row lock serializes sequence checks. Older events remain in the audit timeline but cannot regress the latest `providerStatus`; a conflicting event ID at an already-used shipment sequence is retained as a failed receipt for reconciliation. If the webhook arrives before LI-02E has persisted the local Hub tracking reference, MarketIQ returns a retryable 503 so Hub delivery retries rather than acknowledging a lost event.
+
+Buyer tracking is exposed at:
+
+`GET /api/checkout/logistics/shipments/:sellerOrderId/tracking`
+
+The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation instructions are not implemented by LI-02F.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.

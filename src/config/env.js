@@ -82,6 +82,8 @@ export const env = {
     billingAgreementVersion: process.env.LOGISTIC_HUB_BILLING_AGREEMENT_VERSION,
     shipmentWorkerEnabled: process.env.LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED === "true",
     shipmentWorkerPollMs: Math.max(1000, Math.min(60000, Number(process.env.LOGISTIC_HUB_SHIPMENT_WORKER_POLL_MS) || 2000)),
+    webhookSecret: process.env.LOGISTIC_HUB_WEBHOOK_SECRET,
+    webhookToleranceSeconds: Math.max(30, Math.min(600, Number(process.env.LOGISTIC_HUB_WEBHOOK_TOLERANCE_SECONDS) || 300)),
     timeoutMs: Number(process.env.LOGISTIC_HUB_TIMEOUT_MS) || 8000,
   },
   paystack: {},
