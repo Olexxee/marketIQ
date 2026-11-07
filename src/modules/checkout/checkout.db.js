@@ -156,3 +156,30 @@ export const findOrderById = async (id, tx) => {
 export const withTransaction = async (callback) => {
   return prisma.$transaction(callback, { timeout: 15000 });
 };
+
+
+// ============================================================
+// LOGISTICS QUOTES (checkout validation)
+// ============================================================
+export const findAcceptedLogisticsQuotesForCheckout = async (quoteIds, cartId, tx) => {
+  if (!quoteIds?.length) return [];
+  return dbClient(tx).logisticsQuote.findMany({
+    where: {
+      id: { in: quoteIds },
+      cartId,
+      status: "ACCEPTED",
+      sellerOrderId: null,
+    },
+    include: {
+      selectedOption: true,
+      provider: { select: { id: true, code: true, isActive: true } },
+    },
+  });
+};
+
+export const attachLogisticsQuoteToSellerOrder = async (quoteId, sellerOrderId, tx) => {
+  return dbClient(tx).logisticsQuote.updateMany({
+    where: { id: quoteId, status: "ACCEPTED", sellerOrderId: null },
+    data: { sellerOrderId },
+  });
+};
