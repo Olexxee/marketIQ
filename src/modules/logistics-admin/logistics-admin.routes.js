@@ -9,6 +9,8 @@ import {
   mappingListQuerySchema,
   mappingCreateSchema,
   mappingVerificationSchema,
+  serviceZoneMappingCreateSchema, packageCategoryMappingCreateSchema,
+  logisticsMappingListQuerySchema, logisticsMappingIdParamSchema,
 } from "./logistics-admin.validation.js";
 import {
   listWarehouseMappings,
@@ -18,6 +20,10 @@ import {
   deactivateWarehouseMapping,
   verifyWarehouseCoordinates,
   verifyAddressCoordinates,
+  listServiceZoneMappings, createServiceZoneMapping, verifyServiceZoneMapping,
+  activateServiceZoneMapping, deactivateServiceZoneMapping,
+  listPackageCategoryMappings, createPackageCategoryMapping, verifyPackageCategoryMapping,
+  activatePackageCategoryMapping, deactivatePackageCategoryMapping,
 } from "./logistics-admin.controller.js";
 
 const router = Router();
@@ -30,6 +36,18 @@ router.post("/warehouse-mappings/:id/activate", validateParams(mappingIdParamSch
 router.post("/warehouse-mappings/:id/deactivate", validateParams(mappingIdParamSchema), deactivateWarehouseMapping);
 
 router.patch("/warehouses/:id/coordinates", validateParams(mappingIdParamSchema), validateBody(coordinateVerificationSchema), verifyWarehouseCoordinates);
+router.get("/service-zone-mappings", validateQuery(logisticsMappingListQuerySchema), listServiceZoneMappings);
+router.post("/service-zone-mappings", validateBody(serviceZoneMappingCreateSchema), createServiceZoneMapping);
+router.post("/service-zone-mappings/:id/verify", validateParams(logisticsMappingIdParamSchema), validateBody(mappingVerificationSchema), verifyServiceZoneMapping);
+router.post("/service-zone-mappings/:id/activate", validateParams(logisticsMappingIdParamSchema), activateServiceZoneMapping);
+router.post("/service-zone-mappings/:id/deactivate", validateParams(logisticsMappingIdParamSchema), deactivateServiceZoneMapping);
+
+router.get("/package-category-mappings", validateQuery(logisticsMappingListQuerySchema), listPackageCategoryMappings);
+router.post("/package-category-mappings", validateBody(packageCategoryMappingCreateSchema), createPackageCategoryMapping);
+router.post("/package-category-mappings/:id/verify", validateParams(logisticsMappingIdParamSchema), validateBody(mappingVerificationSchema), verifyPackageCategoryMapping);
+router.post("/package-category-mappings/:id/activate", validateParams(logisticsMappingIdParamSchema), activatePackageCategoryMapping);
+router.post("/package-category-mappings/:id/deactivate", validateParams(logisticsMappingIdParamSchema), deactivatePackageCategoryMapping);
+
 router.patch("/addresses/:id/coordinates", validateParams(addressIdParamSchema), validateBody(coordinateVerificationSchema), verifyAddressCoordinates);
 
 export default router;
