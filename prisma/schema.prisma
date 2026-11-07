@@ -2095,6 +2095,9 @@ model LogisticsShipment {
 
   idempotencyKey String
   status LogisticsShipmentStatus @default(PENDING)
+  // Provider-owned operational status is projected separately from MarketIQ's booking state.
+  providerStatus String?
+  lastEventSequence Int?
 
   customerDeliveryChargeMinor BigInt
   agreedLogisticsCostMinor BigInt
