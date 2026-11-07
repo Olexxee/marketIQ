@@ -22,6 +22,7 @@ export const buildOrderPaymentLedgerAllocation = ({
   let sellerSubtotalMinor = 0n;
   let customerDeliveryMinor = 0n;
   let logisticsCostMinor = 0n;
+  let unallocatedDeliveryMinor = 0n;
 
   const entries = [
     {
@@ -47,7 +48,17 @@ export const buildOrderPaymentLedgerAllocation = ({
       }
       logisticsCost = BigInt(quote.agreedLogisticsCostMinor);
     } else if (customerDelivery > 0n) {
-      throw new ConflictError("A seller order with a customer delivery charge must have its accepted logistics quote attached before payment capture.");
+      // Legacy seller-managed orders may predate the accepted-quote model.
+      // Keep their delivery charge out of seller proceeds and in suspense
+      // until finance reconciles its actual fulfilment cost.
+      unallocatedDeliveryMinor += customerDelivery;
+      entries.push({
+        account: "DELIVERY_UNALLOCATED",
+        direction: "CREDIT",
+        amount: decimal(customerDelivery),
+        currency,
+        sellerOrderId: sellerOrder.id,
+      });
     }
 
     sellerSubtotalMinor += sellerSubtotal;
@@ -95,7 +106,8 @@ export const buildOrderPaymentLedgerAllocation = ({
     });
   }
 
-  const deliveryMarginMinor = customerDeliveryMinor - logisticsCostMinor;
+  const allocatedCustomerDeliveryMinor = customerDeliveryMinor - unallocatedDeliveryMinor;
+  const deliveryMarginMinor = allocatedCustomerDeliveryMinor - logisticsCostMinor;
   if (deliveryMarginMinor > 0n) {
     entries.push({
       account: "PLATFORM_REVENUE",
@@ -118,6 +130,7 @@ export const buildOrderPaymentLedgerAllocation = ({
       sellerPayableMinor: sellerSubtotalMinor.toString(),
       customerDeliveryChargeMinor: customerDeliveryMinor.toString(),
       logisticsPayableMinor: logisticsCostMinor.toString(),
+      unallocatedDeliveryMinor: unallocatedDeliveryMinor.toString(),
       deliveryMarginMinor: deliveryMarginMinor.toString(),
       taxPayableMinor: taxMinor.toString(),
       currency,
