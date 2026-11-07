@@ -58,8 +58,8 @@ test("records platform-funded delivery subsidy when Hub cost exceeds customer ch
   assert.equal(result.entries.find(entry => entry.account === "LOGISTICS_SUBSIDY").direction, "DEBIT");
 });
 
-test("rejects unlinked delivery charges and mismatched checkout allocations", () => {
-  assert.throws(() => buildOrderPaymentLedgerAllocation({
+test("holds legacy delivery charges in suspense and rejects mismatched checkout allocations", () => {
+  const legacy = buildOrderPaymentLedgerAllocation({
     paymentAmount: "110.00",
     orderSubtotal: "100.00",
     orderShippingTotal: "10.00",
@@ -70,7 +70,10 @@ test("rejects unlinked delivery charges and mismatched checkout allocations", ()
       shippingTotal: "10.00",
       logisticsQuote: null,
     }],
-  }), /accepted logistics quote attached/);
+  });
+  assert.equal(legacy.allocation.sellerPayableMinor, "10000");
+  assert.equal(legacy.allocation.unallocatedDeliveryMinor, "1000");
+  assert.equal(legacy.entries.find(entry => entry.account === "DELIVERY_UNALLOCATED").amount, "10.00");
 
   assert.throws(() => buildOrderPaymentLedgerAllocation({
     paymentAmount: "111.00",
