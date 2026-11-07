@@ -64,7 +64,7 @@ export const findQuoteByIdempotency = (providerId, idempotencyKey) =>
 
 export const findOwnedQuote = (quoteId, userId) =>
   prisma.logisticsQuote.findFirst({
-    where: { id: quoteId, cart: { userId } },
+    where: { id: quoteId, cart: { userId, status: "ACTIVE" } },
     include: { provider: true, options: true, selectedOption: true },
   });
 
