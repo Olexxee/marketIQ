@@ -56,13 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A and LI-02B complete; LI-02C quote acquisition and checkout completion in progress.**
+**LI-01, LI-02A, LI-02B and LI-02C merged. LI-02C post-merge acceptance hardening remains open; LI-02D is next.**
 
-**LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
+**Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
 MarketIQ will integrate with Logistic Hub as an external logistics provider.
 
-The LI-02C implementation now includes the authenticated Logistic Hub client, quote request orchestration, local quote/option persistence, buyer quote retrieval and option acceptance routes, verified pickup/destination/category mapping checks, package conversion, and checkout revalidation. The feature remains under CI review; do not deploy until the PR checks pass and the measurement-unit contract below is confirmed. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+LI-02C is merged and includes the authenticated Logistic Hub client, quote request orchestration, local quote/option persistence, buyer quote retrieval and option acceptance routes, verified pickup/destination/category mapping checks, package conversion, and checkout revalidation. Post-merge acceptance work remains: verify seller measurement units, complete checkout/Paystack amount and quote-lifecycle recovery tests, and stage against configured Hub credentials. The v2 contract records the revised payment-authority, privacy, packing-evidence and cancellation boundaries. Do not treat documentation as implementation. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
 
 ### Agreed commercial and shipment model
 

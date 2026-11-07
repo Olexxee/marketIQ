@@ -1,4 +1,4 @@
-# Logistic Hub Integration — LI-01 / LI-02A Audit and Contract
+> **Historical contract notice (2026-11-07):** This v1 document records the original LI-01 source audit and implementation history. For current ownership, payment authorization, identity minimization, parcel manifest, packing evidence, buyer review/cancellation and event-reference rules, use [Logistic Hub Integration Contract v2](logistic-hub-v2.md). Where v1 describes mirrored external customer/seller identities, customer email transmission, Hub-side payment verification or other conflicting behavior, v2 supersedes it.\n\n# Logistic Hub Integration — LI-01 / LI-02A Audit and Contract
 
 **Status:** LI-01 contract decisions and LI-02A source audit are documented. LI-02 implementation has not started. MarketIQ and Logistic Hub remain separate services and databases.
 
