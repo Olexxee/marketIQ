@@ -8,6 +8,19 @@ import {
 const captureLedger = async (call) => {
   let captured;
   const tx = {
+    order: {
+      findUnique: async () => ({
+        subtotal: "1250.00",
+        shippingTotal: "0.00",
+        tax: "0.00",
+        sellerOrders: [{
+          id: "seller_order_1",
+          subtotal: "1250.00",
+          shippingTotal: "0.00",
+          logisticsQuote: null,
+        }],
+      }),
+    },
     ledgerTransaction: {
       create: async ({ data }) => {
         captured = data;
