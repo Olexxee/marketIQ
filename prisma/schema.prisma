@@ -2160,7 +2160,7 @@ model LogisticsServiceZoneMapping {
   updatedAt DateTime @updatedAt
 
   @@unique([providerId, lgaId])
-  @@unique([providerId, externalServiceZoneId])
+  @@index([providerId, externalServiceZoneId])
   @@index([lgaId, isActive])
 }
 
@@ -2181,7 +2181,7 @@ model LogisticsPackageCategoryMapping {
   updatedAt DateTime @updatedAt
 
   @@unique([providerId, categoryId])
-  @@unique([providerId, externalPackageCategory])
+  @@index([providerId, externalPackageCategory])
   @@index([categoryId, isActive])
 }
 
