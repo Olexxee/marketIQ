@@ -14,6 +14,7 @@ export const mappingCreateSchema = z.object({
   providerId: cuid,
   warehouseId: cuid,
   externalWarehouseReference: z.string().trim().min(1).max(180),
+  externalServiceZoneId: z.string().trim().min(1).max(128),
 });
 
 export const mappingVerificationSchema = z.object({
@@ -29,4 +30,31 @@ export const coordinateVerificationSchema = z.object({
   latitude: coordinateNumber(-90, 90),
   longitude: coordinateNumber(-180, 180),
   source: z.string().trim().min(3).max(200),
+}).strict();
+
+export const serviceZoneMappingCreateSchema = z.object({
+  providerId: cuid,
+  lgaId: cuid,
+  externalServiceZoneId: z.string().trim().min(1).max(128),
+});
+export const packageCategoryMappingCreateSchema = z.object({
+  providerId: cuid,
+  categoryId: cuid,
+  externalPackageCategory: z.string().trim().min(2).max(80),
+});
+export const logisticsMappingListQuerySchema = z.object({
+  providerId: cuid.optional(),
+  isActive: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+});
+export const logisticsMappingIdParamSchema = z.object({ id: cuid });
+
+export const warehouseMappingUpdateSchema = z.object({
+  externalWarehouseReference: z.string().trim().min(1).max(180).optional(),
+  externalServiceZoneId: z.string().trim().min(1).max(128).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0);
+export const serviceZoneMappingUpdateSchema = z.object({
+  externalServiceZoneId: z.string().trim().min(1).max(128),
+}).strict();
+export const packageCategoryMappingUpdateSchema = z.object({
+  externalPackageCategory: z.string().trim().min(2).max(80),
 }).strict();
