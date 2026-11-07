@@ -37,6 +37,7 @@ const makeEvent = overrides => ({
 
 const makeContext = () => ({
   id: "seller_order_1",
+  orderId: "order_1",
   shippingTotal: "10.00",
   logisticsQuote: {
     id: "local_quote_1",
