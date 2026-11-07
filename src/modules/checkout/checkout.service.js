@@ -67,6 +67,19 @@ const assertCartPriceIsCurrent = (item) => {
   }
 };
 
+const buildCartSnapshot = (items) => items.map(item => ({
+  cartItemId: item.id,
+  variantId: item.variantId,
+  quantity: item.quantity,
+  unitPriceSnapshot: item.unitPriceSnapshot.toString(),
+  currentUnitPrice: item.variant.price.toString(),
+  categoryId: item.variant.product.categoryId,
+  weight: item.variant.weight.toString(),
+  length: item.variant.length?.toString() ?? null,
+  width: item.variant.width?.toString() ?? null,
+  height: item.variant.height?.toString() ?? null,
+})).sort((a, b) => a.cartItemId.localeCompare(b.cartItemId));
+
 const groupItemsBySeller = (items) => {
   const groups = new Map();
   for (const item of items) {
@@ -311,7 +324,13 @@ export const checkoutService = async (userId, payload) => {
           !quote.warehouseMapping?.warehouse?.isActive ||
           !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
           !quote.warehouseMapping?.warehouse?.coordinatesSource ||
+          Number(quote.requestSnapshot?.request?.pickup?.latitude) !== Number(quote.warehouseMapping.warehouse.latitude) ||
+          Number(quote.requestSnapshot?.request?.pickup?.longitude) !== Number(quote.warehouseMapping.warehouse.longitude) ||
+          quote.requestSnapshot?.request?.pickupAddress !== quote.warehouseMapping.warehouse.address ||
           quote.requestSnapshot?.addressId !== payload.addressId ||
+          JSON.stringify(quote.requestSnapshot?.cartSnapshot ?? []) !== JSON.stringify(buildCartSnapshot(
+            cart.items.filter(item => item.variant.product.seller.id === quote.sellerId),
+          )) ||
           Number(quote.requestSnapshot?.request?.destination?.latitude) !== Number(delivery.latitude) ||
           Number(quote.requestSnapshot?.request?.destination?.longitude) !== Number(delivery.longitude) ||
           quote.customerDeliveryChargeMinor !== quote.selectedOption.customerDeliveryChargeMinor ||
