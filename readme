@@ -215,7 +215,7 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 ### Release gates before LI-02D
 
 1. Merge the backend and storefront changes as a coordinated release.
-2. Apply the MarketIQ production migration before the new backend starts serving requests. Render currently starts MarketIQ with `node src/server.js`, which does not run migrations. Use `npm run prisma:migrate:deploy` against the MarketIQ production `DATABASE_URL`; never use `prisma migrate dev` in production.
+2. Wire the migration into the Render deployment before merging because MarketIQ auto-deploys from `master`. Set the Render Start Command to `npx --yes prisma@6.19.0 migrate deploy && node src/server.js` (or disable auto-deploy, apply the migration with `npm run prisma:migrate:deploy` against the production `DATABASE_URL`, then redeploy). The current `node src/server.js` command does not migrate. Never use `prisma migrate dev` in production.
 3. Have sellers review and update existing physical variants. Legacy measurement units are deliberately not guessed or backfilled; variants without complete positive measurements, explicit units and source cannot receive a delivery quote.
 4. Run the complete staged quote → option acceptance → checkout → Paystack verification flow against configured Logistic Hub credentials.
 5. Reconcile historical settlements/refunds recorded under the old gross-total allocation. This change does not rewrite historical ledger entries.
