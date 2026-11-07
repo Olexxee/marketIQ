@@ -14,7 +14,7 @@
     "test": "node --test",
     "worker": "node src/modules/events/worker.js",
     "prisma:validate": "prisma validate",
-    "prisma:migrate:deploy": "prisma migrate deploy"
+    "prisma:migrate:deploy": "npx --yes prisma@6.19.0 migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
