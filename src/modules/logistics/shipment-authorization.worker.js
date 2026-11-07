@@ -8,6 +8,7 @@ import {
   recoverStaleShipmentAuthorizationEvents,
 } from "./shipment-authorization.db.js";
 import { createShipmentAuthorizationProcessor } from "./shipment-authorization.processor.js";
+import * as repository from "./shipment-authorization.db.js";
 
 const BATCH_SIZE = 10;
 const MAX_ATTEMPTS = 12;
@@ -19,7 +20,7 @@ const retryDate = attempts => {
 };
 
 const processor = createShipmentAuthorizationProcessor({
-  repository: await import("./shipment-authorization.db.js"),
+  repository,
   config: env.logisticHub,
 });
 
