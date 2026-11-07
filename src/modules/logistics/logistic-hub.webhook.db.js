@@ -115,8 +115,12 @@ export function createLogisticHubWebhookRepository({ prismaClient } = {}) {
           });
         }
 
+        const currentShipment = await tx.logisticsShipment.findUnique({
+          where: { id: shipment.id },
+          select: { lastEventSequence: true },
+        });
         const advancesProjection =
-          shipment.lastEventSequence == null || envelope.sequence > shipment.lastEventSequence;
+          currentShipment.lastEventSequence == null || envelope.sequence > currentShipment.lastEventSequence;
         if (advancesProjection) {
           await tx.logisticsShipment.updateMany({
             where: { id: shipment.id, providerId: provider.id },
