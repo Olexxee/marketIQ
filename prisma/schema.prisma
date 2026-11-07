@@ -592,6 +592,7 @@ model Lga {
 
   marketActivities MarketActivity[]
   marketSignals    MarketSignal[]
+  logisticsServiceZoneMappings LogisticsServiceZoneMapping[]
 
   @@unique([stateId, name])
   @@index([stateId])
