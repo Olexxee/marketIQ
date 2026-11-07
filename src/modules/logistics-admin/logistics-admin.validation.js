@@ -47,3 +47,14 @@ export const logisticsMappingListQuerySchema = z.object({
   isActive: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
 });
 export const logisticsMappingIdParamSchema = z.object({ id: cuid });
+
+export const warehouseMappingUpdateSchema = z.object({
+  externalWarehouseReference: z.string().trim().min(1).max(180).optional(),
+  externalServiceZoneId: z.string().trim().min(1).max(128).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0);
+export const serviceZoneMappingUpdateSchema = z.object({
+  externalServiceZoneId: z.string().trim().min(1).max(128),
+}).strict();
+export const packageCategoryMappingUpdateSchema = z.object({
+  externalPackageCategory: z.string().trim().min(2).max(80),
+}).strict();
