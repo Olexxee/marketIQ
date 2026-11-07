@@ -194,7 +194,7 @@ Before submitting a shipment:
 - Parcel category, size, handling instructions and declared value must satisfy Logistic Hub booking rules.
 - Unsupported or unverified locations must be blocked from shipment submission and surfaced for operational resolution.
 
-A future checkout improvement should validate delivery coverage and calculate/confirm delivery pricing before payment. The initial integration must still prevent an ineligible paid order from being represented as a successfully booked shipment.
+LI-02C now validates delivery coverage and confirms delivery pricing before payment through the quote/option flow. Checkout revalidates the accepted quote, selected-option expiry, address/recipient and cart/package snapshot before creating the order. An ineligible or stale quote cannot be treated as a booked shipment.
 
 ## LI-02 v2 implementation status
 
