@@ -156,6 +156,9 @@ The receiving system deduplicates by source + external event ID, preserves event
 - The Hub validates payment authorization against the accepted quote and amount; it does not independently verify Paystack.
 - Shipment delivery does not mean the logistics invoice is settled.
 - Manual reconciliation remains the initial settlement model. Do not implement automatic transfers/payouts as part of shipment booking.
+- Seller settlement is calculated against merchandise subtotal only; customer delivery charges are never seller proceeds.
+- Payment capture records Hub logistics cost as a separate payable and customer-delivery margin/subsidy separately. Legacy delivery charges without a quote and ordinary refunds without a verified allocation remain in suspense accounts until reconciliation.
+- A successful refund requires an explicit, documented seller-settlement adjustment before approval/payout; do not infer the refund allocation from the gross refund amount.
 
 All cross-system monetary values use exact integer minor-unit strings and explicit currency. Floating-point money calculations are prohibited.
 
