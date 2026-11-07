@@ -147,7 +147,9 @@ export const markLocalLogisticsShipmentFailure = ({
   sellerOrderId,
   error,
   terminal,
-}) => prisma.logisticsShipment.updateMany({
+}) => {
+  if (!sellerOrderId) return Promise.resolve({ count: 0 });
+  return prisma.logisticsShipment.updateMany({
   where: { sellerOrderId, status: { not: "BOOKED" } },
   data: {
     status: terminal ? "FAILED" : "RETRY_PENDING",
@@ -155,4 +157,5 @@ export const markLocalLogisticsShipmentFailure = ({
     lastErrorMessage: String(error?.message ?? error).slice(0, 1000),
     failedAt: terminal ? new Date() : null,
   },
-});
+  });
+};
