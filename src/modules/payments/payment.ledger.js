@@ -1,3 +1,4 @@
+import { ConflictError } from "../../classes/errorClasses.js";
 import { buildOrderPaymentLedgerAllocation } from "./payment.ledger-allocation.js";
 
 export const recordPaymentCaptureLedger = async ({ payment, orderId, refundLiability = false }, tx) => {
@@ -46,7 +47,11 @@ export const recordPaymentCaptureLedger = async ({ payment, orderId, refundLiabi
       },
     });
 
-    const allocation = order && buildOrderPaymentLedgerAllocation({
+    if (!order) {
+      throw new ConflictError("The order was not found while allocating the successful payment ledger.");
+    }
+
+    const allocation = buildOrderPaymentLedgerAllocation({
       paymentAmount: payment.amount,
       orderSubtotal: order.subtotal,
       orderShippingTotal: order.shippingTotal,
