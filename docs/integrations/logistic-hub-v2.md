@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D payment-authorization outbox is implemented in the current MarketIQ feature branch pending review/CI; LI-02E shipment submission/retry, LI-02F inbound events and LI-02G packing evidence/buyer review remain future implementation. This document is not proof of deployment or staging acceptance.
+**Status:** Contract v2. LI-02D payment-authorization outbox is implemented in the current MarketIQ feature branch; both backend CI workflows pass on the current PR head, pending review/merge. LI-02E shipment submission/retry, LI-02F inbound events and LI-02G packing evidence/buyer review remain future implementation. This document is not proof of deployment or staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
