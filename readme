@@ -139,7 +139,7 @@ The exact schema, relations, indexes, deletion behavior and event retention poli
 
 ### Buyer quote API (LI-02C)
 
-- `POST /api/checkout/logistics/quotes` — authenticated, verified-email buyer request with `{ sellerId, addressId }` and an `Idempotency-Key` header.
+- `POST /api/checkout/logistics/quotes` — authenticated, verified-email buyer request with `{ sellerId, addressId, customerName?, customerPhone? }` and an `Idempotency-Key` header. Recipient details must match checkout.
 - `GET /api/checkout/logistics/quotes/:quoteId` — retrieve the buyer-owned quote and options.
 - `POST /api/checkout/logistics/quotes/:quoteId/options/:optionId/accept` — accept exactly one provider option; acceptance is idempotent against the provider.
 - Quotes require one active, verified pickup warehouse mapping for the seller, verified destination coordinates, an explicit destination LGA service-zone mapping, and active verified product-category mappings. Ambiguous or missing mappings fail closed.
