@@ -10,6 +10,7 @@ import { EVENT_TYPES } from "../events/event.types.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import { fromMinorUnits, toMinorUnits } from "../logistics/money.js";
 import { calculateCheckoutTotals } from "./checkout-totals.js";
+import { isQuoteOptionActiveAt } from "../logistics/quote-lifecycle.js";
 import {
   createOrder,
   findAcceptedLogisticsQuotesForCheckout,
@@ -312,8 +313,12 @@ export const checkoutService = async (userId, payload) => {
     const quotesBySeller = new Map();
     for (const quote of logisticsQuotes) {
       if (!quote.provider?.isActive || quote.currency !== "NGN" ||
-          !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
-          quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
+          !quote.selectedOption ||
+          !isQuoteOptionActiveAt({
+            quoteExpiresAt: quote.expiresAt,
+            optionExpiresAt: quote.selectedOption.expiresAt,
+          }) ||
+          quote.selectedOptionId == null ||
           !quote.warehouseMapping?.isActive || !quote.warehouseMapping?.verifiedAt ||
           !quote.warehouseMapping?.warehouse?.isActive ||
           !quote.warehouseMapping?.warehouse?.coordinatesVerifiedAt ||
