@@ -1,5 +1,3 @@
-import { env } from "../../config/env.js";
-
 const DEFAULT_TIMEOUT_MS = 8_000;
 
 export class LogisticHubApiError extends Error {
@@ -13,7 +11,12 @@ export class LogisticHubApiError extends Error {
 }
 
 const resolveConfig = (config) => {
-  const value = config ?? env.logisticHub;
+  const value = config ?? {
+    baseUrl: process.env.LOGISTIC_HUB_BASE_URL,
+    keyId: process.env.LOGISTIC_HUB_CLIENT_KEY_ID,
+    secret: process.env.LOGISTIC_HUB_CLIENT_SECRET,
+    timeoutMs: Number(process.env.LOGISTIC_HUB_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
+  };
   if (!value?.baseUrl || !value?.keyId || !value?.secret) {
     throw new LogisticHubApiError("Logistic Hub integration is not configured.", {
       code: "LOGISTIC_HUB_NOT_CONFIGURED",
@@ -30,7 +33,7 @@ const resolveConfig = (config) => {
   }
   if (
     base.username || base.password || base.search || base.hash ||
-    (env.NODE_ENV === "production" && base.protocol !== "https:") ||
+    (process.env.NODE_ENV === "production" && base.protocol !== "https:") ||
     !["https:", "http:"].includes(base.protocol)
   ) {
     throw new LogisticHubApiError("Logistic Hub base URL is not permitted.", {
