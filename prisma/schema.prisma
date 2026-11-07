@@ -1434,6 +1434,7 @@ model Warehouse {
 
   fulfillments Fulfillment[]
   logisticsMappings LogisticsWarehouseMapping[]
+  logisticsServiceZoneMappings LogisticsServiceZoneMapping[]
 
   @@index([sellerId])
   @@index([locationId])
@@ -1953,6 +1954,8 @@ model LogisticsProvider {
   events LogisticsEvent[]
   webhookReceipts LogisticsWebhookReceipt[]
   warehouseMappings LogisticsWarehouseMapping[]
+  serviceZoneMappings LogisticsServiceZoneMapping[]
+  packageCategoryMappings LogisticsPackageCategoryMapping[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2034,6 +2037,7 @@ model LogisticsWarehouseMapping {
   providerId String
   warehouseId String
   externalWarehouseReference String
+  externalServiceZoneId String?
   isActive Boolean @default(false)
   verifiedAt DateTime?
   notes String?
@@ -2136,6 +2140,48 @@ model LogisticsWebhookReceipt {
 
   @@unique([providerId, externalEventId])
   @@index([status, receivedAt])
+}
+
+model LogisticsServiceZoneMapping {
+  id String @id @default(cuid())
+
+  providerId String
+  lgaId String
+  externalServiceZoneId String
+  isActive Boolean @default(false)
+  verifiedAt DateTime?
+  notes String?
+
+  provider LogisticsProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  lga Lga @relation(fields: [lgaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([providerId, lgaId])
+  @@unique([providerId, externalServiceZoneId])
+  @@index([lgaId, isActive])
+}
+
+model LogisticsPackageCategoryMapping {
+  id String @id @default(cuid())
+
+  providerId String
+  categoryId String
+  externalPackageCategory String
+  isActive Boolean @default(false)
+  verifiedAt DateTime?
+  notes String?
+
+  provider LogisticsProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([providerId, categoryId])
+  @@unique([providerId, externalPackageCategory])
+  @@index([categoryId, isActive])
 }
 
 // ============================================================
