@@ -171,14 +171,16 @@ Logistic Hub preserves shipment, custody and packing evidence and provides audit
 
 - One Logistic Hub shipment per MarketIQ SellerOrder remains the v1 rule.
 - The current LI-02C quote adapter rejects cart-line quantity greater than one because the package consolidation/separation model is not defined. This restriction remains until a tested packing model is implemented; the richer manifest contract does not silently remove it.
-- MarketIQ variant measurement units must be confirmed against seller data entry. Current adapter assumptions (weight in kg, dimensions in cm) must not be treated as verified until confirmed or replaced with explicit unit metadata.
+- Physical ProductVariant measurements now use explicit seller-declared units: weight in kg or g, dimensions in cm or mm. MarketIQ converts these to integer grams/millimetres using upward rounding.
+- Legacy variants are not backfilled with guessed units. A physical variant without positive weight, all three positive dimensions, supported units and a measurement source is ineligible for a new delivery quote until reviewed and updated.
+- Digital variants are not eligible for parcel quotes and do not require physical measurements.
 - Quote and shipment acceptance retain immutable request, option, price, package and billing-agreement snapshots.
 - The Hub must not create synthetic sender/customer users to satisfy internal booking assumptions. The integration-owned shipment path remains sender-user independent.
 - Existing generic integration APIs and webhook contracts remain the baseline; any payload/schema change must be versioned and implemented in both systems before use.
 
 ## 10. LI-02 delivery sequence
 
-1. LI-02C post-merge hardening: confirm measurement units, retain quantity restriction until packing is designed, add checkout/Paystack amount tests and quote lifecycle recovery tests.
+1. LI-02C post-merge acceptance hardening: implement explicit package measurement units/source and legacy-data fail-closed behavior; apply exact integer-kobo/reference/currency validation to both Paystack verification paths; cap seller settlement at merchandise subtotal; split payment-capture ledger allocations into seller payable, Hub payable, delivery margin/subsidy, tax and legacy delivery suspense. Unit and PostgreSQL concurrency tests are part of the implementation; configured-Hub staging and full checkout/payment acceptance remain release gates.
 2. LI-02D: MarketIQ payment-verification transaction writes a durable shipment-authorization outbox event; payment response never waits for Hub.
 3. LI-02E: embedded booking worker sends/retries authorization; Hub creates or recovers shipment idempotently and activates fulfilment.
 4. LI-02F: signed event receiver and customer-facing tracking projection, including packing-evidence and cancellation coordination events.
