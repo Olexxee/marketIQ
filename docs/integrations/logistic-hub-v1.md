@@ -1,240 +1,176 @@
-# Logistic Hub Integration Contract — LI-01 / v1.0 (Draft for implementation)
+# Logistic Hub Integration — LI-01 / LI-02A Audit and Contract
 
-**Status:** LI-01 audit complete; contract decisions documented. This is a versioned implementation contract, not a claim that endpoints or schema exist yet.
+**Status:** LI-01 contract decisions and LI-02A source audit are documented. LI-02 implementation has not started. MarketIQ and Logistic Hub remain separate services and databases.
 
-## 1. Audited current-state constraints
+## 1. System ownership
 
-- MarketIQ default branch is `master`; Logistic Hub default branch is `main`.
-- MarketIQ checkout currently creates an `Order` and one `SellerOrder` per seller. Checkout sets `shippingTotal: 0` and order total to merchandise subtotal. Payment is initiated against `Order.total`. Therefore the agreed platform-funded delivery charge is **not yet represented in checkout/payment totals**.
-- MarketIQ `Fulfillment` is unique per `SellerOrder`, currently has a seller-managed status lifecycle, and stores a single `shippingCost`. It cannot safely become the Logistic Hub authoritative shipment lifecycle.
-- MarketIQ `OutboxEvent` is a generic durable event table. `publishEvent` creates events transactionally, but a logistics event needs its own worker handler, claim/retry rules, idempotency and dead-letter visibility. Do not assume a worker already processes logistics.
-- Logistic Hub parcel booking currently follows an internal sender and quote/payment lifecycle. Its current endpoint is not a marketplace integration API.
-- Logistic Hub payment activation is disabled. Marketplace booking must not bypass or silently switch on payment/refund safeguards.
-
-## 2. Domain ownership
-
-| Concern | Authority |
+| Concern | System of record |
 |---|---|
-| Buyer, seller, catalog, cart, checkout, order, seller order, customer payment/refund | MarketIQ |
-| Seller warehouse mapping and checkout shipping charge | MarketIQ (mapping administratively configured; quote supplied by provider) |
-| Logistics quote calculation, quote validity and booking snapshot | Logistic Hub |
-| Shipment booking, delivery legs, dispatch, driver/partner/hub custody and exceptions | Logistic Hub |
-| Customer-facing tracking projection | MarketIQ, derived from accepted provider events |
-| Platform logistics payable and reconciliation | MarketIQ + Logistic Hub records; neither delivery nor webhook alone settles funds |
+| Buyer, seller, catalogue, cart, checkout, order, seller order and customer payment/refund | MarketIQ |
+| Seller warehouse mapping and customer checkout shipping charge | MarketIQ |
+| Package assessment, service coverage, route feasibility, quote options and quote expiry | Logistic Hub |
+| Shipment booking, delivery legs, partner/driver assignment, hubs, custody and delivery exceptions | Logistic Hub |
+| MarketIQ customer-facing tracking projection | MarketIQ, derived from authenticated Logistic Hub events |
+| Logistics payable and reconciliation | MarketIQ + Logistic Hub records; manual reconciliation for v1 |
 
-## 3. Required end-to-end flow
+MarketIQ must not choose Logistic Hub partners, drivers, hubs, routes, rate cards or operational statuses. Logistic Hub must not charge the buyer or claim MarketIQ's Paystack payment as a Logistic Hub payment.
 
-### 3.1 Pre-payment quote
+## 2. Source audit — MarketIQ current state
 
-1. MarketIQ resolves the cart into seller orders and eligible fulfilment groups.
-2. For each seller order, MarketIQ resolves an active warehouse mapping and obtains destination/recipient/parcel details.
-3. MarketIQ requests a Logistic Hub quote **before payment**.
-4. Logistic Hub validates both endpoint service zones, partner/rate-card eligibility, parcel constraints and quote expiry.
-5. MarketIQ displays the provider delivery charge and obtains customer acceptance.
-6. Checkout persists the quote reference/version and delivery-charge snapshot; the customer payment amount includes merchandise + delivery charge + any separately supported charges.
+The audit inspected the current `master` branch checkout, payment, fulfillment, event-worker, Prisma schema, migration and logistics-admin implementation.
 
-**Current blocker:** existing checkout hardcodes shipping to zero. LI-02 must change checkout persistence/validation and Paystack payment amount coherently. Do not add delivery cost only after payment.
+### 2.1 Checkout and order creation
 
-### 3.2 Post-payment booking
+- `POST /api/checkout/` calls `checkoutService`.
+- Checkout locks the active cart, validates cart items, groups items by seller, creates the parent `Order`, creates one `SellerOrder` per seller, reserves inventory and marks the cart checked out in one transaction.
+- Checkout currently writes `Order.shippingTotal = 0`, `Order.total = subtotal`, and each `SellerOrder.shippingTotal = 0`, `SellerOrder.total = subtotal`.
+- Seller orders and order IDs are created during checkout. They do not exist during the earlier cart-review stage.
+- The existing `LogisticsQuote` model is cart/seller scoped and has an optional unique `sellerOrderId`, which can be linked after checkout. This is compatible with pre-checkout quoting in principle, but the current model stores one amount/one provider quote reference and does not model a selectable list of provider quote options.
 
-1. MarketIQ confirms Paystack success using its existing verified payment flow.
-2. In the same MarketIQ DB transaction that marks payment/order success, enqueue one logistics booking event per eligible seller order/fulfilment.
-3. The integration worker claims the event and submits a booking request referencing the accepted, unexpired provider quote.
-4. Logistic Hub atomically enforces external idempotency and creates/reuses the marketplace shipment booking.
-5. MarketIQ persists provider booking/tracking references and integration status.
-6. A retry must reuse the same idempotency key and payload identity. It must never create a second booking or customer charge.
+**Implication:** LI-02 must request and accept delivery options before checkout, persist the accepted quote against the active cart and seller group, then atomically attach that accepted quote to the newly created SellerOrder during checkout. It must not call Logistic Hub from inside the checkout database transaction.
 
-Paid order creation must remain successful if Logistic Hub is temporarily unavailable. Booking is asynchronous and visible as pending/failed/retryable to operations.
+### 2.2 Payment
 
-## 4. External identity and idempotency
+- Payment initiation reads `Order.total` and creates the Paystack payment for that amount.
+- Paystack's webhook verifies the raw request signature and compares the provider's kobo amount to the expected order amount.
+- On successful capture, `applySuccessfulPayment` updates payment and order state, commits inventory sales, confirms seller orders, recalculates order status, records the payment ledger/audit and publishes `PAYMENT_COMPLETED` through the outbox in the same database transaction.
+- This transaction is the correct point to enqueue shipment booking work, but the current event registry has no logistics listener for `PAYMENT_COMPLETED`.
+- The current amount comparison uses `Math.round(Number(payment.amount) * 100)`; LI-02 must use the shared exact decimal-to-minor-unit conversion and add precision/round-trip tests.
 
-All identifiers are opaque strings. Do not map MarketIQ IDs to Logistic Hub internal IDs.
+**Invariant:** the delivery charge must be included in `Order.total` before Paystack initialization. A shipment booking must never create a second buyer charge.
 
-- `sourceSystem`: constant `MARKETIQ`
-- `externalOrderReference`: MarketIQ Order ID
-- `externalSellerOrderReference`: MarketIQ SellerOrder ID
-- `externalFulfillmentReference`: MarketIQ Fulfillment ID (or stable fulfilment intent ID created before provider call)
-- `externalSellerReference`: MarketIQ SellerProfile ID
-- `externalCustomerReference`: MarketIQ buyer ID; nullable for guest checkout only if guest checkout is actually supported
-- `externalWarehouseReference`: MarketIQ Warehouse ID
-- `externalQuoteReference`: Logistic Hub quote ID
-- `externalShipmentReference`: stable MarketIQ fulfillment reference used for provider-side uniqueness
+### 2.3 Fulfillment ownership and lifecycle
 
-Logistic Hub uniqueness requirement: `(sourceSystem, externalFulfillmentReference)` must identify one booking. The request's idempotency key must be persisted and scoped to the integration client. Same key + same canonical payload returns the original result; same key + different payload returns conflict.
+- `Fulfillment` is unique per `SellerOrder` and is currently created by the seller fulfillment service after payment.
+- The seller service accepts seller-provided shipping cost, carrier, tracking number and seller-controlled status transitions.
+- `LogisticsShipment` is also unique per `SellerOrder` and optionally links to a `Fulfillment`.
+- The provider shipment must become the source of truth for delivery status when a seller order uses Logistic Hub. Seller fulfillment controls must not be allowed to overwrite provider-owned milestones or create a competing fulfillment.
+- Existing seller fulfillment behavior must remain available for orders not using Logistic Hub.
 
-MarketIQ should use a persisted stable idempotency key, not generate a fresh key per retry.
+**Implementation requirement:** add an explicit fulfillment ownership/provider mode and enforce it in the service layer and database invariants. The integration worker must create or link the provider-managed fulfillment idempotently; the seller must not be able to create a second one or set provider tracking/status manually.
 
-## 5. Proposed v1 API surface
+### 2.4 Existing logistics persistence — gaps to reconcile
 
-These are proposed integration endpoints; they are **not implemented yet**.
+MarketIQ already has `LogisticsProvider`, `LogisticsQuote`, `LogisticsWarehouseMapping`, `LogisticsShipment`, `LogisticsEvent` and `LogisticsWebhookReceipt` models from migration `20261105000000_add_logistics_integration`.
 
-### Quote
+The current schema is an initial scaffold, not the completed LI-02 contract:
 
-`POST /api/v1/integrations/marketplace/quotes`
+- `LogisticsQuote` persists one customer charge and one logistics cost. Logistic Hub returns a quote session with multiple options; MarketIQ must persist each option or retain a rigorously validated immutable option collection with a separately selected option.
+- `LogisticsQuote.idempotencyKey`, `LogisticsShipment.idempotencyKey` and `LogisticsShipment.externalReference` are globally unique. They need provider-scoped uniqueness (or an explicit client namespace) so another logistics provider cannot collide.
+- `LogisticsQuote.sellerOrderId` is optional and unique; it can be attached after checkout, but the stable fulfillment intent/reference must exist before the provider quote call.
+- `LogisticsShipment.sellerOrderId` and `fulfillmentId` are unique, which is appropriate for the current one-shipment-per-seller-order v1 rule.
+- `LogisticsEvent.sequence` is nullable and not yet constrained as a monotonic per-shipment cursor.
+- `LogisticsWebhookReceipt` has provider/event uniqueness, but its JSON payload alone is not a substitute for preserving the exact raw request bytes needed for HMAC verification.
+- Provider credentials/signing-secret lifecycle and environment separation must be designed; secrets must never be stored in plaintext or exposed to the frontend.
 
-Request fields:
-- `externalOrderReference`, `externalSellerOrderReference`, `externalFulfillmentReference`
-- `externalSellerReference`, `externalWarehouseReference`
-- `pickup`: address snapshot, verified latitude/longitude, service-zone mapping reference
-- `destination`: address/recipient snapshot, verified latitude/longitude, service-zone mapping reference
-- `parcel`: category, description, dimensions/weight where required, quantity, declared value where required
-- `currency`: `NGN`
-- `billingAgreementReference`
+Do not drop or repurpose existing tables blindly. LI-02 schema work must use forward-only migrations and preserve existing rows.
 
-Response fields:
-- `quoteReference`, `quoteVersion`, `status`, `expiresAt`
-- `deliveryChargeMinor` (customer charge)
-- `logisticsCostMinor` (provider agreed cost, if the provider contract exposes it)
-- `currency`, `billingAgreementReference`
-- provider eligibility/validation outcome and non-sensitive reason codes
+### 2.5 Warehouse mapping and location
 
-Quote must be bound to the exact pickup/destination/parcel snapshot and external seller-order/fulfilment reference. Changing material details invalidates the quote and requires a new quote.
+- Admin-managed `LogisticsWarehouseMapping` already requires verification before activation.
+- Activation checks active provider/warehouse and verified warehouse coordinates.
+- Address coordinate verification exists separately.
+- No service-zone ID may be inferred from state/LGA/city. The quote request must use explicit Logistic Hub service-zone identifiers maintained through an approved mapping/configuration process.
+- An inactive or missing mapping must fail closed; no fallback warehouse or fabricated coordinates.
 
-### Booking
+### 2.6 Outbox worker runtime
 
-`POST /api/v1/integrations/marketplace/shipments`
+- MarketIQ has a generic transactional `OutboxEvent` and a worker script at `src/modules/events/worker.js`.
+- The worker currently runs as a separate `npm run worker` process; `src/server.js` does not start it.
+- The listener registry currently registers market-activity listeners only. There is no `PAYMENT_COMPLETED` logistics listener.
+- The existing worker claims events with a conditional status update and recovers stale PROCESSING rows, but does not yet implement the explicit integration-specific lease/claim telemetry and bounded dead-letter operations required for booking orchestration.
 
-Headers:
-- `Authorization: Bearer <integration credential>` (service credential, not customer JWT)
-- `Idempotency-Key: <persisted key>`
-- `X-Integration-Client: MARKETIQ`
+**Deployment decision for LI-02:** run the logistics booking worker within the existing MarketIQ Render web-service process, with explicit start/stop lifecycle and database-backed claims. Do not require a separate paid Render worker service. Keep processing idempotent because delivery is at-least-once and a process can crash after Logistic Hub commits a shipment but before MarketIQ records the response.
 
-Request:
-- all external references above
-- `quoteReference` + `quoteVersion`
-- immutable pickup, destination, recipient and parcel snapshots
-- `deliveryChargeMinor`, `logisticsCostMinor`, `currency`
-- `billingAgreementReference`
-- `customerPaymentStatus: PAID` and MarketIQ payment reference as audit metadata only; provider must not treat this as a Paystack transaction or charge the customer
+## 3. Logistic Hub API contract — verified implementation
 
-Response:
-- `shipmentReference` (Logistic Hub internal booking ID)
-- `externalFulfillmentReference`
-- `trackingReference`
-- `status`
-- accepted quote/billing snapshot
-- `createdAt`
+The generic API is mounted under `/api/v1/integrations`; it is not mounted under a MarketIQ-specific `/marketplace` path.
 
-### Lookup
+### Quote lifecycle
 
-`GET /api/v1/integrations/marketplace/shipments/:shipmentReference`
+- `POST /api/v1/integrations/quotes` — requires `quotes:write` and `Idempotency-Key`.
+- `GET /api/v1/integrations/quotes/:quoteSessionId` — requires `quotes:read`.
+- `POST /api/v1/integrations/quotes/:quoteSessionId/options/:optionId/accept` — requires `quotes:write` and `Idempotency-Key`.
 
-Also support lookup by external fulfilment reference under authenticated client scope, so MarketIQ can recover from a lost response safely.
+Quote creation accepts a billing agreement reference, external reference, pickup/destination address snapshots and coordinates, service-zone IDs, recipient details and 1–50 package records. Logistic Hub returns available quote options with opaque IDs, prices in NGN minor-unit strings and expiry. It currently offers only complete `END_TO_END` interstate options; unsupported local/hub-assisted pricing fails closed with `REQUIRES_OPERATIONAL_PRICING`.
 
-## 6. Monetary contract
+### Shipment lifecycle
 
-**API boundary:** NGN integer minor units (kobo) encoded as decimal strings, e.g. `"125000"`. No floats.
+- `POST /api/v1/integrations/shipments` — requires `shipments:write` and `Idempotency-Key`.
+- `GET /api/v1/integrations/shipments/:shipmentId` — requires `shipments:read`.
+- `GET /api/v1/integrations/shipments/by-external-reference/:externalFulfillmentReference` — requires `shipments:read`.
+- `GET /api/v1/integrations/shipments/:shipmentId/events?afterSequence=0&limit=50` — requires `shipments:read`.
 
-MarketIQ's existing Prisma commerce amounts are `Decimal(12,2)` in naira, and Paystack currently converts naira to kobo. This is a real representation difference. LI-02 must implement an exact decimal-to-kobo conversion (no JS floating-point arithmetic) and add round-trip/precision tests. Do not silently reinterpret existing Decimal fields as kobo.
+Shipment creation accepts the selected quote session/option, the exact external fulfillment reference bound to the quote and a `paymentAttestation` containing provider, external payment reference, verification timestamp, currency and delivery-charge minor units. The attestation is trusted input from the authenticated integration client; Logistic Hub does not independently verify MarketIQ's Paystack payment. The attested delivery charge and currency must exactly match the selected quote.
 
-Keep these values distinct:
-- customer delivery charge
-- agreed logistics cost/payable
-- order total paid by customer
-- any discount, tax, subsidy or platform margin
+The API creates an integration-owned booking atomically, without a synthetic sender, Logistic Hub Paystack charge, internal payment attempt, refund or payment-ledger entry. It preserves each package independently and starts the shipment awaiting partner assignment.
 
-The quote and booking must preserve the quote-time amount and billing-agreement version. Do not recalculate a historical booking using current partner rates.
+### Signed webhook delivery
 
-## 7. Provider events / webhook contract
+MarketIQ registers a webhook endpoint through the integration endpoint-management API and subscribes to supported event types. Logistic Hub sends a JSON envelope:
 
-Logistic Hub → MarketIQ webhook endpoint (proposed):
-`POST /api/v1/integrations/logistic-hub/webhooks`
+```json
+{
+  "id": "event-id",
+  "type": "shipment.created",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-07T12:00:00.000Z",
+  "sequence": 1,
+  "data": {
+    "shipmentReference": "public-reference",
+    "status": "AWAITING_PARTNER_ASSIGNMENT"
+  }
+}
+```
 
-Headers:
-- `X-LogisticHub-Key-Id`
-- `X-LogisticHub-Timestamp` (Unix seconds)
-- `X-LogisticHub-Signature` (HMAC-SHA256 over timestamp + "." + raw body; exact canonicalization to be shared by both implementations)
-- `X-LogisticHub-Event-Id`
+Headers include `X-Logistic-Hub-Event-Id`, `X-Logistic-Hub-Delivery-Id`, `X-Logistic-Hub-Event-Type`, `X-Logistic-Hub-Event-Sequence`, `X-Logistic-Hub-Timestamp` and `X-Logistic-Hub-Signature`. Signature format is `t=<unix-seconds>,v1=<hex-digest>`, HMAC-SHA256 over the exact bytes of `timestamp + "." + rawBody`.
 
-Payload:
-- `eventId`, `eventType`, `occurredAt`, `shipmentReference`
-- `sourceSystem`, `externalFulfillmentReference`
-- monotonic `eventSequence` per shipment (required to reject stale/out-of-order state transitions)
-- `status`, optional tracking/custody milestone data, schema version
+MarketIQ must verify the signature over raw request bytes with constant-time comparison, enforce a bounded timestamp tolerance, deduplicate by event ID, and apply only strictly newer per-shipment sequences. Provider events update the logistics projection only; they must not directly complete MarketIQ orders, trigger payment/refund, or settle sellers.
 
-MarketIQ must:
-1. Verify signature against raw request bytes and active key ID using timing-safe comparison.
-2. Enforce timestamp tolerance and reject replay outside configured window.
-3. Insert a webhook receipt with unique `(provider, eventId)` before applying the projection.
-4. Apply events idempotently and only when sequence/version is newer.
-5. Persist the raw/normalized event and processing result for audit.
-6. Return success for already-processed duplicate events; do not apply twice.
-7. Avoid letting provider events mutate MarketIQ customer payment, refund, seller settlement or order completion decisions.
+The current externally mapped event vocabulary is:
+- `shipment.created`
+- `shipment.partner_assigned`
+- `shipment.in_transit`
+- `shipment.custody_handover_confirmed`
+- `shipment.delivery_leg_completed`
 
-Event families initially needed:
-- shipment booked / booking rejected
-- pickup scheduled / picked up
-- hub received / hub released / custody handover
-- in transit / delayed / exception opened / exception resolved
-- out for delivery / delivered / delivery failed
-- cancelled / returned (only when supported by Logistic Hub state machine)
+Do not invent events for pickup scheduling, out-for-delivery, delivery failure, cancellation or returns until Logistic Hub exposes and documents those source lifecycle transitions.
 
-Exact event names and transition mapping are finalized with LI-03 API implementation. MarketIQ's current `FULFILLMENT_SHIPPED` and `FULFILLMENT_DELIVERED` events are internal marketplace events, not a provider webhook contract.
+## 4. Monetary invariants
 
-## 8. Location and eligibility
+- MarketIQ commerce amounts are Prisma `Decimal(12,2)` in naira.
+- Logistic Hub integration API amounts are integer minor-unit decimal strings (kobo).
+- Convert using exact decimal arithmetic; do not use `Number(value) * 100`, floating-point arithmetic or implicit BigInt/Decimal coercion.
+- Customer delivery charge, agreed logistics cost, merchandise subtotal, discounts, taxes and platform margin remain distinct.
+- The accepted customer delivery charge contributes to parent `Order.shippingTotal` and `Order.total`.
+- Seller payable/settlement must not accidentally include the customer's delivery charge. Logistics payable is a separate platform liability.
+- Preserve the quote and billing-agreement version snapshot; never reprice historical accepted quotes using current partner rates.
 
-- Warehouse mapping is explicit, admin-managed, active, and scoped to seller.
-- Do not infer a Logistic Hub service zone from state/LGA/city alone.
-- Pickup and destination must each resolve to active Logistic Hub service coverage.
-- Coordinates must be verified from authoritative address/location capture; do not geocode/invent coordinates as a fallback.
-- Quote/booking must reject inactive warehouse mappings, unsupported parcel categories, stale quotes and unsupported zones with stable error codes.
-- Warehouse mapping changes must not rewrite existing shipment snapshots.
+## 5. LI-02 implementation slices
 
-## 9. Retry, operations and reconciliation
+| Slice | Scope | Exit criteria |
+|---|---|---|
+| LI-02A | Source audit and contract reconciliation | Current checkout/payment/fulfillment/outbox behavior and actual Logistic Hub routes/events documented. |
+| LI-02B | Persistence and exact money model | Provider-scoped idempotency, quote-option persistence/selection, stable fulfillment intent, provider event sequence and raw webhook receipt model; migration preserves existing data. |
+| LI-02C | Pre-payment quote and checkout | Quote/option selection before checkout; accepted charge atomically copied into order/seller-order snapshots; expired/changed quotes rejected; no provider HTTP inside checkout transaction. |
+| LI-02D | Payment and shipment outbox | Paystack amount includes shipping; successful payment transaction enqueues one booking job per eligible seller fulfillment; duplicate payment events do not duplicate jobs. |
+| LI-02E | Booking worker and recovery | Embedded worker with database-backed claim/lease, stable idempotency key, retry/backoff, dead-letter visibility, external-reference recovery and no duplicate shipment after timeout. |
+| LI-02F | Webhook receiver and tracking projection | Raw-body HMAC verification, timestamp tolerance, event dedupe, monotonic sequence, safe status projection and webhook acceptance tests. |
+| LI-02G | Operational readiness | Warehouse/service-zone mapping acceptance, integration credentials, Render configuration, failure matrix, manual reconciliation and end-to-end staging tests. |
 
-- MarketIQ integration worker uses database-backed claims, lease/claim expiry, bounded exponential retry and dead-letter/failed state.
-- Persist attempts, last error code, timestamps, next retry and correlation/idempotency keys.
-- Separate integration job processing from email-only concerns; the current generic MarketIQ outbox is not proof of a logistics worker implementation.
-- Operational dashboard/recovery must allow safe retry of a failed booking using the original key.
-- Manual reconciliation is initial mode. A delivery milestone does not settle a payable.
-- Reconcile cancellations, failed delivery, return-to-sender, partial refunds, provider cost adjustments and disputes explicitly.
-- Never make a second customer charge because a provider request timed out.
+## 6. Non-negotiable invariants
 
-## 10. Security and operational controls
+1. Quote before customer payment; shipment booking only after verified payment.
+2. One Logistic Hub shipment per MarketIQ seller fulfillment in v1.
+3. Stable external fulfillment reference and idempotency key across every retry.
+4. No customer charge initiated by Logistic Hub.
+5. No booking request or external network call inside a MarketIQ database transaction.
+6. Payment success is never rolled back because Logistic Hub is unavailable.
+7. Seller-controlled fulfillment updates cannot overwrite Logistic Hub-owned shipment state.
+8. Provider event receipt is not payment verification, order completion or seller settlement.
+9. No synthetic users, fabricated coordinates, invented service zones or arbitrary fallback rates.
+10. Every phase updates this contract and the repository README implementation status.
 
-- Dedicated revocable service credentials with rotation, scopes, environment separation and audit logging.
-- Secrets only in Render environment variables/secret manager; never in repository or request logs.
-- Rate limit integration endpoints and validate schemas strictly.
-- Webhook secret/key rotation must support active and previous key during controlled overlap.
-- Do not trust provider event payload as an instruction; treat it as signed but still validate event type, schema and transition.
-- Do not enable Logistic Hub Paystack payments or refunds as part of this integration without separate explicit approval.
+## 7. Release gates
 
-## 11. LI-01 audit outcome and next implementation slices
-
-### LI-01 complete when
-- [x] Repository ownership and current checkout/fulfilment/payment constraints audited.
-- [x] Quote-before-payment and booking-after-payment sequencing clarified.
-- [x] Separate service/database boundary retained.
-- [x] External identity and idempotency model established.
-- [x] Provider quote and booking API surfaces drafted.
-- [x] Money representation mismatch recorded.
-- [x] Webhook signature, dedupe and ordering requirements drafted.
-
-### LI-02 — MarketIQ persistence and checkout
-- Add provider and quote/shipment/event/receipt persistence after schema review.
-- Introduce pre-payment quote request/acceptance into checkout.
-- Include accepted delivery charge in order/seller-order totals and Paystack payment amount.
-- Preserve existing inventory transaction and payment verification invariants.
-- Add logistics booking outbox worker only after paid state is committed.
-
-### LI-03 — Logistic Hub marketplace adapter
-- Service authentication, external mapping, quote endpoint, booking endpoint and lookup.
-- Reuse partner pricing/service-zone eligibility.
-- Add source-system external references and marketplace billing agreement representation.
-- Keep customer payment disabled for this provider-funded flow.
-
-### LI-04 — Booking orchestration and LI-05 webhook sync
-- Idempotent post-payment booking, signed webhook delivery/receipt, monotonic event processing and tracking projection.
-
-### LI-06 — Manual reconciliation and release readiness
-- Operational exception matrix, audit report, replay tests, integration contract tests and deployment/runbook.
-
-## 12. Explicit non-goals for v1
-
-- Shared databases or cross-service Prisma relations.
-- MarketIQ managing Logistic Hub drivers, hubs, custody, legs or exception state.
-- Logistic Hub charging the buyer directly.
-- Automated partner settlement/payout.
-- Shipment booking before verified customer payment.
-- Treating the seller's existing fulfillment status as authoritative logistics status.
-- Shipping unsupported locations or unverified coordinates.
+Do not enable the provider in production until LI-02B–LI-02F tests pass, the MarketIQ integration client/credential and billing agreement are provisioned in Logistic Hub, a verified warehouse/service-zone mapping exists, Render worker and webhook configuration are confirmed, and staging proves quote → checkout → Paystack → booking → tracking end to end. Manual logistics payable reconciliation remains the v1 operating mode.
