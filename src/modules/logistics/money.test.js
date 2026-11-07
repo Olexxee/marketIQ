@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toMinorUnits } from "./money.js";
+import { toMinorUnits, fromMinorUnits } from "./money.js";
 
 test("converts naira decimal strings to exact kobo", () => {
   assert.equal(toMinorUnits("1250"), 125000);
@@ -18,4 +18,12 @@ test("rejects floating-point numbers and malformed precision", () => {
 
 test("rejects values outside the safe integer range", () => {
   assert.throws(() => toMinorUnits("90071992547409.92"), RangeError);
+});
+
+test("formats integer kobo as exact NGN decimal strings", () => {
+  assert.equal(fromMinorUnits(1n), "0.01");
+  assert.equal(fromMinorUnits(100n), "1.00");
+  assert.equal(fromMinorUnits(123456789012345n), "1234567890123.45");
+  assert.throws(() => fromMinorUnits(-1n), RangeError);
+  assert.throws(() => fromMinorUnits("1.2.3"), TypeError);
 });
