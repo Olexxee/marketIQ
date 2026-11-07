@@ -7,7 +7,7 @@ import {
   markLocalLogisticsShipmentFailure,
   recoverStaleShipmentAuthorizationEvents,
 } from "./shipment-authorization.db.js";
-import { createShipmentAuthorizationProcessor } from "./shipment-authorization.processor.js";
+import { createShipmentAuthorizationProcessor, ShipmentAuthorizationError } from "./shipment-authorization.processor.js";
 import * as repository from "./shipment-authorization.db.js";
 
 const BATCH_SIZE = 10;
@@ -33,7 +33,10 @@ const processOne = async event => {
     await processor(event);
     await completeShipmentAuthorizationEvent(event.id);
   } catch (error) {
-    const terminal = error?.retryable !== true || attempt >= MAX_ATTEMPTS;
+    const retryable = error?.retryable === true || (
+      error?.retryable !== false && !(error instanceof ShipmentAuthorizationError)
+    );
+    const terminal = !retryable || attempt >= MAX_ATTEMPTS;
     await markLocalLogisticsShipmentFailure({
       sellerOrderId: event.payload?.sellerOrderId,
       error,
@@ -71,22 +74,29 @@ export const startShipmentAuthorizationWorker = ({
   }
 
   let running = false;
-  const run = async () => {
-    if (running) return;
+  let activeRun = Promise.resolve();
+  const run = () => {
+    if (running) return activeRun;
     running = true;
-    try {
-      await processShipmentAuthorizationEvents();
-    } catch (error) {
-      console.error("[LI-02E] Worker cycle failed", {
-        code: error?.code ?? "WORKER_CYCLE_FAILED",
-        message: error?.message ?? String(error),
-      });
-    } finally {
-      running = false;
-    }
+    activeRun = (async () => {
+      try {
+        await processShipmentAuthorizationEvents();
+      } catch (error) {
+        console.error("[LI-02E] Worker cycle failed", {
+          code: error?.code ?? "WORKER_CYCLE_FAILED",
+          message: error?.message ?? String(error),
+        });
+      } finally {
+        running = false;
+      }
+    })();
+    return activeRun;
   };
 
   void run();
-  const timer = setInterval(run, pollIntervalMs);
-  return () => clearInterval(timer);
+  const timer = setInterval(() => { void run(); }, pollIntervalMs);
+  return async () => {
+    clearInterval(timer);
+    await activeRun;
+  };
 };
