@@ -91,6 +91,67 @@ test("marks transport failures retryable without exposing low-level details", as
   );
 });
 
+test("creates integration shipments with the exact idempotency key", async () => {
+  let captured;
+  const client = createLogisticHubClient({
+    config,
+    fetchImpl: async (url, options) => {
+      captured = { url, options };
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ success: true, data: { shipment: { id: "hub-id", reference: "HUB-REF-1" } } }),
+      };
+    },
+  });
+  const body = {
+    quoteSessionId: "quote_1",
+    quoteOptionId: "option_1",
+    externalFulfillmentReference: "mqi-fulfilment-1",
+    paymentAttestation: {
+      paymentProvider: "PAYSTACK",
+      externalPaymentReference: "paystack-ref",
+      verifiedAt: "2026-11-07T12:00:00.000Z",
+      currency: "NGN",
+      deliveryChargeMinor: "1000",
+      orderPaymentAmountMinor: "11000",
+    },
+  };
+  const result = await client.createShipment(body, "stable-shipment-key");
+  assert.equal(result.shipment.id, "hub-id");
+  assert.equal(captured.url, "https://hub.example.test/api/v1/integrations/shipments");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers["Idempotency-Key"], "stable-shipment-key");
+  assert.deepEqual(JSON.parse(captured.options.body), body);
+});
+
+test("recovers a shipment by external fulfilment reference and treats only 404 as absent", async () => {
+  let capturedUrl;
+  const foundClient = createLogisticHubClient({
+    config,
+    fetchImpl: async url => {
+      capturedUrl = url;
+      return { ok: true, status: 200, json: async () => ({ success: true, data: { shipment: { id: "hub-id" } } }) };
+    },
+  });
+  const found = await foundClient.getShipmentByExternalReference("mqi/ref 1");
+  assert.equal(found.shipment.id, "hub-id");
+  assert.equal(
+    capturedUrl,
+    "https://hub.example.test/api/v1/integrations/shipments/by-external-reference/mqi%2Fref%201",
+  );
+
+  const missingClient = createLogisticHubClient({
+    config,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ success: false, error: { code: "NOT_FOUND", message: "Not found" } }),
+    }),
+  });
+  assert.equal(await missingClient.getShipmentByExternalReference("missing"), null);
+});
+
 test("rejects missing credentials and insecure production URLs", () => {
   assert.throws(
     () => createLogisticHubClient({ config: { baseUrl: config.baseUrl } }),
