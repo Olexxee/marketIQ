@@ -18,5 +18,5 @@ test("tracking lookup is scoped to the authenticated buyer and Logistic Hub prov
     provider: { code: "LOGISTIC_HUB" },
     sellerOrder: { order: { buyerId: "buyer-1" } },
   });
-  assert.deepEqual(captured.events.orderBy, { sequence: "asc" });
+  assert.deepEqual(captured.select.events.orderBy, { sequence: "asc" });
 });
