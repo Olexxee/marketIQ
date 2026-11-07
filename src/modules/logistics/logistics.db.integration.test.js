@@ -89,6 +89,35 @@ test("local quote acceptance is atomic under concurrent option selection and rej
     });
     assert.equal(replay.selectedOptionId, accepted.selectedOptionId);
 
+    const activeQuoteWithExpiredOption = await prisma.logisticsQuote.create({
+      data: {
+        providerId: provider.id,
+        cartId: cart.id,
+        sellerId: seller.id,
+        idempotencyKey: `expired-option-${token}`,
+        expiresAt: new Date(now.getTime() + 60_000),
+        requestSnapshot: { test: true },
+      },
+    });
+    const expiredOnlyOption = await prisma.logisticsQuoteOption.create({
+      data: {
+        quoteId: activeQuoteWithExpiredOption.id,
+        providerOptionReference: "expired-only-option",
+        customerDeliveryChargeMinor: 1000n,
+        agreedLogisticsCostMinor: 800n,
+        expiresAt: new Date(now.getTime() - 1000),
+        optionSnapshot: { test: "expired-option" },
+      },
+    });
+    const expiredOptionResult = await acceptLocalQuoteOption({
+      quoteId: activeQuoteWithExpiredOption.id,
+      optionId: expiredOnlyOption.id,
+      customerChargeMinor: expiredOnlyOption.customerDeliveryChargeMinor,
+      logisticsCostMinor: expiredOnlyOption.agreedLogisticsCostMinor,
+      acceptedAt: now,
+    });
+    assert.equal(expiredOptionResult, null);
+
     const expiredQuote = await prisma.logisticsQuote.create({
       data: {
         providerId: provider.id,
