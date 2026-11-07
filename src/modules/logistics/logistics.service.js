@@ -24,7 +24,7 @@ const hash = value => createHash("sha256").update(value).digest("hex");
 const scaledCeil = (value, multiplier, label) => {
   if (value === null || value === undefined) return undefined;
   const raw = value.toString().trim();
-  const match = /^(0|[1-9]\\d*)(?:\\.(\\d+))?$/.exec(raw);
+  const match = /^(0|[1-9]\d*)(?:\.(\d+))?$/.exec(raw);
   if (!match) throw new ConflictError(`Product ${label} must be a non-negative decimal measurement.`);
   const fraction = match[2] ?? "";
   const denominator = 10n ** BigInt(fraction.length);
