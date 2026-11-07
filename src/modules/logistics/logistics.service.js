@@ -184,7 +184,8 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId, 
     cartSnapshot: buildCartSnapshot(cart.items),
     warehouseMappingId: warehouseMapping.id,
     destinationServiceZoneMappingId: destinationZone.id,
-    payloadHash: hash(JSON.stringify(request)),
+    payloadHash: hash(JSON.stringify({ request, billingAgreementVersion: env.logisticHub.billingAgreementVersion ?? null })),
+    billingAgreementVersion: env.logisticHub.billingAgreementVersion ?? null,
     request,
   };
   const existing = await findQuoteByIdempotency(provider.id, idempotencyKey);
