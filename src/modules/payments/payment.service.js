@@ -19,6 +19,10 @@ import { recordPaymentCaptureLedger, recordRefundLedger } from "./payment.ledger
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import { toMinorUnits } from "../logistics/money.js";
 import {
+  getPaystackPaymentMismatch,
+  describePaystackPaymentMismatch,
+} from "./payment-verification.js";
+import {
   createPayment,
   createRefundRecord,
   findRefundById,
@@ -204,7 +208,12 @@ export const verifyPaymentService = async (userId, reference) => {
   const remote = await verifyTransaction(reference);
 
   if (remote.status === "success") {
-    await applySuccessfulPayment(payment.id, remote);
+    const mismatch = getPaystackPaymentMismatch(payment, remote);
+    if (mismatch) {
+      await markPaymentFailed(payment.id, describePaystackPaymentMismatch(mismatch));
+    } else {
+      await applySuccessfulPayment(payment.id, remote);
+    }
   } else if (remote.status === "failed" || remote.status === "abandoned") {
     await applyFailedPayment(payment.id, remote);
   }
@@ -241,19 +250,10 @@ export const handleChargeSuccess = async (reference, event) => {
     return { handled: true, reason: "already-processed" };
   }
 
-  const expectedKobo = Math.round(Number(payment.amount) * 100);
-  const receivedKobo = Number(event?.data?.amount ?? 0);
-
-  if (expectedKobo !== receivedKobo) {
-    await markPaymentFailed(payment.id, "Paystack charge amount did not match the expected order payment amount");
-    return { handled: false, reason: "amount-mismatch" };
-  }
-
-  const currency = event?.data?.currency;
-
-  if (currency && currency !== payment.currency) {
-    await markPaymentFailed(payment.id, "Paystack charge currency did not match the expected payment currency");
-    return { handled: false, reason: "currency-mismatch" };
+  const mismatch = getPaystackPaymentMismatch(payment, event?.data);
+  if (mismatch) {
+    await markPaymentFailed(payment.id, describePaystackPaymentMismatch(mismatch));
+    return { handled: false, reason: mismatch };
   }
 
   await applySuccessfulPayment(payment.id, event);
