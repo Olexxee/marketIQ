@@ -56,13 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A, LI-02B and LI-02C merged. LI-02C post-merge acceptance hardening remains open; LI-02D is next.**
+**LI-01, LI-02A, LI-02B and LI-02C are merged. Phase A acceptance hardening is under review in MarketIQ PR #14 and storefront PR #9; LI-02D remains blocked on staging acceptance.**
 
 **Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
 MarketIQ will integrate with Logistic Hub as an external logistics provider.
 
-LI-02C is merged and includes the authenticated Logistic Hub client, quote request orchestration, local quote/option persistence, buyer quote retrieval and option acceptance routes, verified pickup/destination/category mapping checks, package conversion, and checkout revalidation. Phase A acceptance hardening is now in implementation: variant package measurements gain explicit units/source and legacy records fail closed; Paystack verification paths share exact integer-kobo amount/currency/reference checks; seller settlement is capped at merchandise subtotal; payment capture ledger allocations separate seller payable, Hub payable, delivery margin/subsidy, tax and legacy delivery suspense. Unit and PostgreSQL concurrency tests are being added. CI and live staging with configured Hub credentials remain release gates; do not treat a passing unit suite as production acceptance. The v2 contract records the revised payment-authority, privacy, packing-evidence and cancellation boundaries. Do not treat documentation as implementation. For production deployment, apply pending MarketIQ migrations with `npm run prisma:migrate:deploy` against the MarketIQ production `DATABASE_URL` before starting the new backend version. The current Render service start command is `node src/server.js` and does not run migrations automatically. Do not substitute `prisma migrate dev` in production. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+LI-02C quote acquisition and checkout pricing are merged. Phase A acceptance hardening is proposed in MarketIQ PR #14 and storefront PR #9: explicit kg/g and cm/mm package measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation in both verification paths; seller settlement capped at merchandise subtotal; payment capture ledger separation for seller payable, Hub payable, delivery margin/subsidy and tax; and suspense accounts for legacy delivery charges and unallocated refunds. The backend PR has passed Prisma validation, migration deployment and 92/92 tests in both backend workflows; the storefront Vercel check has passed. Neither PR is merged. The v2 contract is authoritative for payment authority, privacy, packing evidence and cancellation boundaries. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
 
 ### Agreed commercial and shipment model
 
@@ -196,110 +196,30 @@ Before submitting a shipment:
 
 A future checkout improvement should validate delivery coverage and calculate/confirm delivery pricing before payment. The initial integration must still prevent an ineligible paid order from being represented as a successfully booked shipment.
 
-## LI-02 implementation progress
+## LI-02 v2 implementation status
 
-**Completed — persistence foundation and monetary boundary.** The initial implementation adds the following records:
+The authoritative integration contract is [docs/integrations/logistic-hub-v2.md](docs/integrations/logistic-hub-v2.md). It supersedes the earlier v1 planning text.
 
-- `LogisticsProvider`: provider identity and non-secret configuration metadata.
-- `LogisticsWarehouseMapping`: explicit admin-managed mapping from a MarketIQ warehouse to a provider pickup reference; mappings are inactive until verified.
-- `LogisticsQuote`: cart/seller-scoped pre-payment quote with immutable request/response snapshots, expiry, acceptance and integer-minor-unit charge/cost fields. It can be bound to the resulting SellerOrder after checkout.
-- `LogisticsShipment`: one idempotent shipment per SellerOrder, with an optional link to the later-created Fulfillment.
-- `LogisticsEvent` and `LogisticsWebhookReceipt`: provider event deduplication and durable webhook receipt state.
+### Completed
 
-The schema and migrations are committed. Exact naira-decimal-string to kobo conversion is implemented with unit tests added; the Paystack initialization path now uses it instead of multiplying a JavaScript floating-point number. The LI-02 location foundation adds verified pickup/destination coordinate fields and a strict snapshot builder. The admin logistics controls now add admin-only coordinate verification for warehouses and delivery addresses, provider warehouse mapping create/update/list, mapping verification, and explicit activation/deactivation. Updating a mapping resets its verification and deactivates it until re-verified. Mapping activation requires an active provider, active warehouse, verified mapping and verified warehouse coordinates. Updating warehouse coordinates deactivates every mapping for that warehouse and clears any prior mapping verification, including previously inactive mappings, to force re-review. The migration applies cleanly to a fresh PostgreSQL database, Prisma validation/generation passes, and the full backend test suite passes on the current LI-02C mapping branch.
+- **LI-02A:** MarketIQ source audit and v2 integration contract.
+- **LI-02B:** quote/option persistence, selected-option linkage, provider-scoped idempotency/external references, event sequence constraints, webhook signature metadata and fulfillment ownership mode.
+- **LI-02C:** authenticated Logistic Hub quote client, seller-scoped quote acquisition, verified warehouse/destination/category mappings, local quote/option persistence, option acceptance, checkout snapshot/expiry revalidation and delivery-charge inclusion in Order/SellerOrder totals.
 
-**LI-02C mapping prerequisite added in the current branch:** explicit admin-managed provider service-zone mappings per MarketIQ LGA and provider package-category mappings per MarketIQ product category. Pickup warehouse mappings now also require the provider's pickup service-zone reference. Each mapping is created inactive, separately verified with an audit note, and activated only while its provider is active. This prevents MarketIQ from deriving Logistic Hub service-zone IDs or parcel categories from geographic labels/product names. The migration and validation tests are included in the branch. These controls do not geocode addresses or verify provider-side values automatically; an administrator must confirm the external references against Logistic Hub configuration.\n\n**Still outstanding:** provider quote API calls, package measurement/unit normalization, buyer quote request/acceptance endpoints, cart/destination snapshot binding, checkout quote-set completeness and expiry enforcement, delivery charge inclusion in Order/SellerOrder totals, shipment booking worker, and inbound webhook processing. Do not enable or advertise live Logistic Hub checkout until these controls, provider credentials, migrations and CI pass.
+### Phase A — LI-02C acceptance hardening (PRs open)
 
-**Verified-location foundation added on the LI-02 branch:** `Address` and `Warehouse` now support latitude/longitude, verification timestamp and verification source. The migration enforces coordinate pairs, geographic ranges and verification metadata consistency. `buildVerifiedLogisticsLocation` rejects unverified or invalid locations and produces a normalized immutable location snapshot for future quote/booking requests. It does not geocode addresses or mark coordinates verified automatically.
+- **MarketIQ PR #14:** explicit package measurement units/source; legacy variants fail closed until reviewed; exact Paystack reference/currency/integer-kobo checks; seller settlement limited to merchandise subtotal; ledger separation for seller payable, Hub payable, delivery margin/subsidy and tax; delivery/refund suspense allocation; quote-expiry and concurrency/retry tests.
+- **Storefront PR #9:** seller entry and editing of packed weight/dimensions with explicit kg/g and cm/mm units, including legacy variant remediation.
+- **Verification:** both backend workflows passed on the PR head with 92/92 tests; the storefront Vercel check passed. The PRs remain open and unmerged.
 
-**Remaining readiness blockers:** provider and warehouse records must be configured and reviewed; the quote adapter and checkout quote acceptance are not implemented. Live quotes remain blocked until the provider API contract, quote adapter, checkout pricing flow, and operational testing are complete.
+### Release gates before LI-02D
 
-## Integration implementation roadmap
+1. Merge the backend and storefront changes as a coordinated release.
+2. Apply the MarketIQ production migration before the new backend starts serving requests. Render currently starts MarketIQ with `node src/server.js`, which does not run migrations. Use `npm run prisma:migrate:deploy` against the MarketIQ production `DATABASE_URL`; never use `prisma migrate dev` in production.
+3. Have sellers review and update existing physical variants. Legacy measurement units are deliberately not guessed or backfilled; variants without complete positive measurements, explicit units and source cannot receive a delivery quote.
+4. Run the complete staged quote → option acceptance → checkout → Paystack verification flow against configured Logistic Hub credentials.
+5. Reconcile historical settlements/refunds recorded under the old gross-total allocation. This change does not rewrite historical ledger entries.
 
-| Phase | Scope | Completion criteria |
-|---|---|---|
-| **LI-01 — Contract, identity and location readiness** | Finalize service authentication, external identity mapping, booking DTO, platform billing contract, location mapping and error semantics | Approved request/response contract; no internal-user impersonation; verified pickup/destination validation; no bypass of customer-payment safeguards |
-| **LI-02 — MarketIQ persistence, admin controls and adapter** | Add provider/shipment/event/webhook persistence, verified locations, admin warehouse mappings, quote adapter and checkout quote lifecycle | Admin-only verification and mapping controls; one provider shipment per fulfilment; durable snapshots; database uniqueness/idempotency; provider-free tests |
-| **LI-03 — Logistic Hub integration API** | Implement integration authentication, external identity resolution, platform-funded booking and shipment lookup | Credential authorization/revocation; safe repeated requests; ordinary customer booking/payment behavior unchanged |
-| **LI-04 — Payment-triggered shipment creation** | Connect successful payment/outbox events to the MarketIQ logistics adapter | Paid eligible seller orders only; independent seller-order processing; retry-safe booking; provider outage does not break checkout |
-| **LI-05 — Signed webhooks and fulfilment synchronization** | Implement signed provider events, durable receipts, deduplication and state projection | Invalid signatures rejected; duplicate events harmless; stale events cannot regress state; customer tracking synchronized |
-| **LI-06 — Reconciliation, exceptions and production readiness** | Reconcile charges and liabilities; handle refunds, cancellations, failed delivery, returns and operational exceptions | Traceable shipment costs; actionable failure visibility; auditable reconciliation; documented recovery procedures |
+Only after those gates pass should LI-02D implement the payment-verification transaction and durable shipment-authorization outbox. MarketIQ payment success must remain independent of Logistic Hub availability.
 
-LI-02 and LI-03 may be developed in parallel after LI-01, provided both implementations follow the approved contract.
-
-## Event and failure-handling requirements
-
-MarketIQ's existing event dispatcher may retry an event after partial listener failure. The logistics listener must therefore maintain its own durable processing state and idempotency; it must not assume event dispatch is exactly-once.
-
-Expected outbound shipment processing states:
-
-    PENDING
-      ├── PROCESSING
-      │     ├── CREATED
-      │     ├── RETRY_PENDING
-      │     └── FAILED
-      └── CANCELLED
-
-The implementation must persist a successful external booking reference before considering the outbound operation complete. Retryable errors must be retried with bounded backoff; permanent validation failures must be surfaced for operational intervention. Concurrent processing must not create duplicate bookings.
-
-Proposed inbound provider event types:
-- SHIPMENT_CREATED
-- SHIPMENT_ACCEPTED
-- DRIVER_ASSIGNED
-- PICKUP_CONFIRMED
-- HUB_RECEIVED
-- IN_TRANSIT
-- DELIVERY_ATTEMPT_FAILED
-- DELIVERED
-- SHIPMENT_CANCELLED
-- SHIPMENT_EXCEPTION
-
-Webhook processing must verify signature and timestamp, persist the receipt/event, deduplicate by provider event identity, and prevent out-of-order events from regressing the current projection.
-
-## Non-negotiable safeguards
-
-1. No shared database between MarketIQ and Logistic Hub.
-2. No customer JWTs as service credentials.
-3. No external ID accepted as an internal Logistic Hub user ID.
-4. No duplicate bookings under retries or concurrent requests.
-5. No second customer payment for a MarketIQ shipment.
-6. No floating-point monetary calculations.
-7. No shipment submission for unverified or unsupported locations.
-8. No MarketIQ mutation of Logistic Hub operational state.
-9. No silent loss of failed outbound events or inbound webhooks.
-10. No automatic financial settlement based only on delivery status.
-11. No production rollout until integration, recovery, security and reconciliation tests pass.
-
-## Next action
-
-Begin with **LI-01**. Audit the current MarketIQ and Logistic Hub schemas, authentication, booking/payment services, event dispatcher/outbox and fulfilment lifecycle. Produce the exact file-level change list and a versioned integration contract before changing either database schema.
-
-**No integration implementation, schema migration, production credential or payment configuration has been changed as part of documenting this plan.**
-
-
-### LI-02B implementation status (2026-11-07)
-
-Current branch: `feat/li-02b-logistics-persistence`.
-
-- Added normalized `LogisticsQuoteOption` records so one provider quote session can preserve multiple immutable provider options.
-- Quote charge/cost snapshot fields are nullable until an option is selected; option prices remain required integer-kobo `BigInt` values.
-- Added selected-option linkage and a stable provider-scoped external fulfillment reference to quote persistence.
-- Changed quote and shipment idempotency/external-reference uniqueness to provider-scoped composite constraints.
-- Added per-shipment event sequence uniqueness and positive-sequence validation.
-- Added webhook raw-body SHA-256 and signature timestamp/version audit fields. Raw webhook bytes are intentionally not retained; the receiver must verify HMAC against raw bytes before persisting the receipt.
-- Added `Fulfillment.ownerMode` so later lifecycle work can distinguish seller-managed fulfillment from Logistic Hub-managed fulfillment.
-- Added a forward-only migration. Existing quote/shipment rows and seller-managed fulfillment ownership are preserved.
-
-**Not yet implemented in LI-02B:** quote/option API services, checkout pricing, payment flow changes, booking worker, webhook receiver, or fulfillment ownership enforcement. These belong to LI-02C–LI-02F.
-
-
-### LI-02C checkout pricing implementation (in progress)
-
-Branch: `feat/li-02c-checkout-logistics-pricing`
-
-- Checkout accepts selected logistics quote IDs and validates that each quote belongs to the active cart, remains accepted/unconsumed, has an active provider, is unexpired, and matches its selected-option price snapshot.
-- One logistics quote per seller is allowed. Quotes are attached to the generated SellerOrder within the checkout transaction; concurrent consumption fails the transaction.
-- Accepted customer delivery charges are included in both parent Order and SellerOrder totals. Seller-managed seller groups without a selected logistics quote retain zero shipping.
-- Added exact kobo-to-NGN decimal-string formatting and unit coverage.
-- Checkout remains free of external Logistic Hub network calls; quote acquisition and option acceptance must occur before checkout.
-- **Remaining before LI-02C is complete:** quote request/option-selection API and provider adapter, integration-level checkout tests, exact checkout amount/payment tests, and CI verification. Do not deploy or treat this as end-to-end logistics quoting yet.
+No production Render configuration, production database migration or deployment has been changed by these PRs.
