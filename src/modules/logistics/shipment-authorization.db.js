@@ -90,6 +90,8 @@ export const ensureLocalLogisticsShipment = async ({
       existing.externalReference === externalReference &&
       existing.idempotencyKey === idempotencyKey &&
       existing.customerDeliveryChargeMinor === BigInt(customerDeliveryChargeMinor) &&
+      existing.agreedLogisticsCostMinor === BigInt(agreedLogisticsCostMinor) &&
+      existing.billingAgreementReference === billingAgreementReference &&
       existing.currency === currency;
     if (!matches) {
       const error = new Error("Local shipment record conflicts with the immutable authorization snapshot.");
@@ -150,12 +152,12 @@ export const markLocalLogisticsShipmentFailure = ({
 }) => {
   if (!sellerOrderId) return Promise.resolve({ count: 0 });
   return prisma.logisticsShipment.updateMany({
-  where: { sellerOrderId, status: { not: "BOOKED" } },
-  data: {
-    status: terminal ? "FAILED" : "RETRY_PENDING",
-    lastErrorCode: error?.code ?? "SHIPMENT_AUTHORIZATION_FAILED",
-    lastErrorMessage: String(error?.message ?? error).slice(0, 1000),
-    failedAt: terminal ? new Date() : null,
-  },
+    where: { sellerOrderId, status: { not: "BOOKED" } },
+    data: {
+      status: terminal ? "FAILED" : "RETRY_PENDING",
+      lastErrorCode: error?.code ?? "SHIPMENT_AUTHORIZATION_FAILED",
+      lastErrorMessage: String(error?.message ?? error).slice(0, 1000),
+      failedAt: terminal ? new Date() : null,
+    },
   });
 };
