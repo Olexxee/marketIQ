@@ -172,6 +172,7 @@ export const findAcceptedLogisticsQuotesForCheckout = async (quoteIds, cartId, t
     },
     include: {
       selectedOption: true,
+      warehouseMapping: { include: { warehouse: true } },
       provider: { select: { id: true, code: true, isActive: true } },
     },
   });
