@@ -129,7 +129,7 @@ export const recordRefundLedger = async (refund, tx) => {
       entries: {
         create: [
           {
-            account: isBuyerRefundLiability ? "BUYER_REFUND" : "SELLER_PAYABLE",
+            account: isBuyerRefundLiability ? "BUYER_REFUND" : "REFUND_UNALLOCATED",
             direction: "DEBIT",
             amount: refund.amount,
             currency: refund.currency,
