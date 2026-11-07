@@ -105,7 +105,9 @@ export const acceptLocalQuoteOption = ({ quoteId, optionId, customerChargeMinor,
       where: { id: quoteId, status: "QUOTED", selectedOptionId: null, expiresAt: { gt: acceptedAt } },
       data: {
         status: "ACCEPTED", selectedOptionId: optionId,
-        customerDeliveryChargeMinor, agreedLogisticsCostMinor, acceptedAt,
+        customerDeliveryChargeMinor: customerChargeMinor,
+        agreedLogisticsCostMinor: logisticsCostMinor,
+        acceptedAt,
       },
     });
     if (updated.count !== 1) return null;
