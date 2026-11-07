@@ -195,4 +195,30 @@ LI-02D events preserve the accepted quote request/option snapshot and the billin
 
 LI-02E retry policy uses the existing outbox attempt counter: 5 seconds, 15 seconds, 1 minute, 5 minutes, 15 minutes, then 1 hour between retries, with a maximum of 12 attempts before the event is marked `FAILED`. A retry always looks up the external fulfilment reference first; if the Hub committed a shipment but MarketIQ lost the response, the existing booking is recovered rather than duplicated. A 404 lookup alone permits create; other lookup failures prevent create and are retried or dead-lettered according to provider retryability. Operators can requeue a dead-lettered event only after correcting the cause and confirming that no duplicate shipment exists.
 
+## LI-02F — Signed Hub webhooks and buyer tracking projection
+
+MarketIQ receives Logistic Hub deliveries at:
+
+`POST /api/integrations/logistic-hub/webhook`
+
+The receiver consumes the exact request bytes before JSON parsing. The signing secret is the one-time endpoint secret issued by Logistic Hub webhook management and is configured separately from the outbound integration credential as `LOGISTIC_HUB_WEBHOOK_SECRET`. Default timestamp tolerance is 300 seconds; the accepted configuration range is 30–600 seconds.
+
+The Hub signs `<unix-seconds>.<exact-raw-body>` using HMAC-SHA256. MarketIQ verifies the digest with constant-time comparison and requires the signature timestamp to match `X-Logistic-Hub-Timestamp` and fall within tolerance. It also requires these headers to match the signed envelope:
+
+- `X-Logistic-Hub-Event-Id`
+- `X-Logistic-Hub-Event-Type`
+- `X-Logistic-Hub-Event-Sequence`
+- `X-Logistic-Hub-Timestamp`
+- `X-Logistic-Hub-Signature: t=<unix-seconds>,v1=<hex-digest>`
+
+The v1 JSON envelope is `{ id, type, schemaVersion, occurredAt, sequence, data }`; `data` contains only `shipmentReference` and resulting `status`. The accepted event vocabulary is `shipment.created`, `shipment.partner_assigned`, `shipment.in_transit`, `shipment.custody_handover_confirmed` and `shipment.delivery_leg_completed` (the latter may represent multiple Hub custody milestones).
+
+After signature verification, MarketIQ stores a verified receipt with the SHA-256 body fingerprint (not the raw body), deduplicates by provider + event ID, and appends a sanitized `LogisticsEvent`. A shipment-row lock serializes sequence checks. Older events remain in the audit timeline but cannot regress the latest `providerStatus`; a conflicting event ID at an already-used shipment sequence is retained as a failed receipt for reconciliation. If the webhook arrives before LI-02E has persisted the local Hub tracking reference, MarketIQ returns a retryable 503 so Hub delivery retries rather than acknowledging a lost event.
+
+Buyer tracking is exposed at:
+
+`GET /api/checkout/logistics/shipments/:sellerOrderId/tracking`
+
+The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation instructions are not implemented by LI-02F.
+
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.
