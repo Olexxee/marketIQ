@@ -59,15 +59,15 @@ import {
 
 test("service-zone mapping requires an explicit LGA and provider zone reference", () => {
   assert.throws(() => serviceZoneMappingCreateSchema.parse({
-    providerId: "provider", lgaId: "lga", externalServiceZoneId: "",
+    providerId: "c123456789012345678901234", lgaId: "c123456789012345678901235", externalServiceZoneId: "",
   }));
 });
 
 test("package-category mapping requires a provider-compatible category reference", () => {
   assert.throws(() => packageCategoryMappingCreateSchema.parse({
-    providerId: "provider", categoryId: "category", externalPackageCategory: "",
+    providerId: "c123456789012345678901234", categoryId: "c123456789012345678901235", externalPackageCategory: "",
   }));
   assert.equal(packageCategoryMappingCreateSchema.parse({
-    providerId: "provider", categoryId: "category", externalPackageCategory: "PARCEL",
+    providerId: "c123456789012345678901234", categoryId: "c123456789012345678901235", externalPackageCategory: "PARCEL",
   }).externalPackageCategory, "PARCEL");
 });
