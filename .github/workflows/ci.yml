@@ -47,3 +47,5 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/marketiq_ci
       - name: Run tests
         run: npm test
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/marketiq_ci
