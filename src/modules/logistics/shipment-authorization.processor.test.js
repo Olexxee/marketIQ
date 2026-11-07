@@ -7,6 +7,8 @@ import {
 
 const makeEvent = overrides => ({
   id: "event_1",
+  aggregateType: "SELLER_ORDER",
+  aggregateId: "seller_order_1",
   attempts: 0,
   payload: {
     schemaVersion: 1,
@@ -58,6 +60,7 @@ const makeContext = () => ({
     },
     provider: {
       id: "provider_1",
+      code: "LOGISTIC_HUB",
       isActive: true,
       baseUrl: "https://hub.example.test",
     },
