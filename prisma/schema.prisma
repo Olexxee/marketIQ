@@ -1945,6 +1945,9 @@ model OutboxEvent {
   aggregateId   String
 
   payload Json
+  // Stable business identity for at-least-once event production.
+  // Nullable to preserve existing generic outbox events.
+  dedupeKey String? @unique
 
   status OutboxEventStatus @default(PENDING)
 
