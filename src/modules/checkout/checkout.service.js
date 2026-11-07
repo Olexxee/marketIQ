@@ -166,7 +166,7 @@ const createSellerMarketplaceOrder = async (orderId, group, subtotal, shippingTo
       sellerId: group.seller.id,
       subtotal,
       shippingTotal,
-      total: subtotal + shippingTotal,
+      total: subtotal + Number(shippingTotal),
       status: "PENDING",
       sellerStateId: group.seller.stateId ?? null,
       sellerLgaId: group.seller.lgaId ?? null,
@@ -287,6 +287,9 @@ export const checkoutService = async (userId, payload) => {
     // 4. Group cart items by seller and validate buyer-selected delivery quotes.
     const sellerGroups = groupItemsBySeller(cart.items);
     const quoteIds = payload.logisticsQuoteIds ?? [];
+    if (new Set(quoteIds).size !== quoteIds.length) {
+      throw new BadRequestError("Duplicate logistics quote IDs are not allowed.");
+    }
     const logisticsQuotes = await findAcceptedLogisticsQuotesForCheckout(quoteIds, cart.id, tx);
     if (logisticsQuotes.length !== quoteIds.length) {
       throw new ConflictError("One or more delivery quotes are invalid, already used, or no longer accepted.");
