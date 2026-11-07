@@ -22,6 +22,19 @@ import {
 
 const hash = value => createHash("sha256").update(value).digest("hex");
 
+const buildCartSnapshot = items => items.map(item => ({
+  cartItemId: item.id,
+  variantId: item.variantId,
+  quantity: item.quantity,
+  unitPriceSnapshot: item.unitPriceSnapshot.toString(),
+  currentUnitPrice: item.variant.price.toString(),
+  categoryId: item.variant.product.categoryId,
+  weight: item.variant.weight.toString(),
+  length: item.variant.length?.toString() ?? null,
+  width: item.variant.width?.toString() ?? null,
+  height: item.variant.height?.toString() ?? null,
+})).sort((a, b) => a.cartItemId.localeCompare(b.cartItemId));
+
 const parseMinorUnits = (value, field) => {
   if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) {
     throw new ServiceUnavailableError(`Logistic Hub returned an invalid ${field} amount.`);
@@ -169,6 +182,7 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
 
   const requestSnapshot = {
     addressId,
+    cartSnapshot: buildCartSnapshot(cart.items),
     warehouseMappingId: warehouseMapping.id,
     destinationServiceZoneMappingId: destinationZone.id,
     payloadHash: hash(JSON.stringify(request)),
