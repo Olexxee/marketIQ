@@ -1,9 +1,10 @@
 import prisma from "../../config/prisma.js";
+import { EVENT_TYPES } from "./event.types.js";
 
 const dbClient = (tx) => tx || prisma;
 
 export const createOutboxEvent = async (
-  { eventType, aggregateType, aggregateId, payload },
+  { eventType, aggregateType, aggregateId, payload, dedupeKey = null },
   tx,
 ) => {
   return dbClient(tx).outboxEvent.create({
@@ -12,6 +13,7 @@ export const createOutboxEvent = async (
       aggregateType,
       aggregateId,
       payload,
+      dedupeKey,
     },
   });
 };
@@ -19,6 +21,8 @@ export const createOutboxEvent = async (
 export const findPendingOutboxEvents = async (limit = 25) => {
   return prisma.outboxEvent.findMany({
     where: {
+      // Only the dedicated LI-02E worker may consume shipment authorizations.
+      eventType: { not: EVENT_TYPES.LOGISTICS_SHIPMENT_AUTHORIZATION_REQUESTED },
       status: "PENDING",
       availableAt: {
         lte: new Date(),
