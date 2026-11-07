@@ -56,11 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A and LI-02B complete; LI-02C implementation in progress.**
+**LI-01, LI-02A and LI-02B complete; LI-02C quote acquisition and checkout completion in progress.**
 
 **LI-01 contract:** [Logistic Hub Integration Contract v1.0](docs/integrations/logistic-hub-v1.md). The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
-MarketIQ will integrate with Logistic Hub as an external logistics provider. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+MarketIQ will integrate with Logistic Hub as an external logistics provider.
+
+The LI-02C provider-client foundation is implemented on the active feature branch: dedicated integration headers, idempotency-key support, strict HTTPS enforcement in production, redirect rejection, bounded request timeouts, normalized provider errors, and client unit tests. Quote orchestration, local quote persistence, and buyer-facing endpoints remain outstanding. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
 
 ### Agreed commercial and shipment model
 
