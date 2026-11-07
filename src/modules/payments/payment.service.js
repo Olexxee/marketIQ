@@ -363,7 +363,11 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
     const verifiedAt = new Date();
     for (const sellerOrder of sellerOrders) {
       const authorizationEvent = buildShipmentAuthorizationEvent({
-        payment,
+        payment: {
+          ...payment,
+          providerReference:
+            rawEvent?.data?.reference || payment.providerReference || payment.reference,
+        },
         order: { id: payment.orderId, orderNumber: order?.orderNumber ?? null },
         sellerOrder,
         verifiedAt,
