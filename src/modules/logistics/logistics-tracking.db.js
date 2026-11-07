@@ -1,3 +1,5 @@
+import prisma from "../../config/prisma.js";
+
 export const createLogisticsTrackingRepository = ({ prismaClient } = {}) => {
   if (!prismaClient) throw new Error("A Prisma client is required.");
 
@@ -31,3 +33,6 @@ export const createLogisticsTrackingRepository = ({ prismaClient } = {}) => {
       }),
   });
 };
+
+const repository = createLogisticsTrackingRepository({ prismaClient: prisma });
+export const findOwnedLogisticsShipmentTracking = repository.findOwnedLogisticsShipmentTracking;
