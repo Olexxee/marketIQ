@@ -161,6 +161,22 @@ test("refuses blocked authorizations before creating a local shipment or calling
   assert.equal(ensured, false);
 });
 
+test("rejects an outbox event whose aggregate does not match the seller order", async () => {
+  let ensured = false;
+  const processor = createShipmentAuthorizationProcessor({
+    repository: makeRepository({
+      ensureLocalLogisticsShipment: async () => { ensured = true; },
+    }),
+    config,
+    clientFactory: () => { throw new Error("Hub must not be called"); },
+  });
+  await assert.rejects(
+    processor(makeEvent({ aggregateId: "another-seller-order" })),
+    error => error.code === "SHIPMENT_EVENT_IDENTITY_MISMATCH",
+  );
+  assert.equal(ensured, false);
+});
+
 test("rejects a quote snapshot drift before contacting Hub", async () => {
   const context = makeContext();
   context.logisticsQuote.selectedOption.providerOptionReference = "different-option";
