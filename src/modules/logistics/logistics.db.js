@@ -8,7 +8,12 @@ export const findActiveCartForSeller = (userId, sellerId) => prisma.cart.findFir
       include: {
         variant: {
           include: {
-            product: { select: { id: true, name: true, categoryId: true, sellerId: true } },
+            product: {
+              select: {
+                id: true, name: true, categoryId: true, sellerId: true, status: true,
+                seller: { select: { id: true, status: true } },
+              },
+            },
           },
         },
       },
