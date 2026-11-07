@@ -8,9 +8,12 @@ import {
 import {
   createDeliveryQuote, getDeliveryQuote, acceptDeliveryQuoteOption,
 } from "./logistics.controller.js";
+import { getShipmentTracking } from "./logistics-tracking.controller.js";
+import { shipmentTrackingParamsSchema } from "./logistics.validation.js";
 
 const router = Router();
 router.use(authenticate, requireVerifiedEmail);
+router.get("/shipments/:sellerOrderId/tracking", validateParams(shipmentTrackingParamsSchema), getShipmentTracking);
 router.post("/quotes", validateBody(quoteCreateSchema), createDeliveryQuote);
 router.get("/quotes/:quoteId", validateParams(quoteParamsSchema), getDeliveryQuote);
 router.post("/quotes/:quoteId/options/:optionId/accept", validateParams(quoteOptionParamsSchema), acceptDeliveryQuoteOption);
