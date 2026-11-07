@@ -212,7 +212,7 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 - **Storefront PR #9:** seller entry and editing of packed weight/dimensions with explicit kg/g and cm/mm units, including legacy variant remediation.
 - **Verification:** both backend workflows passed on the PR head with 92/92 tests; the storefront Vercel check passed. The PRs remain open and unmerged.
 
-### Release gates before LI-02D
+### LI-02C acceptance and production release gates
 
 1. Before merging, wire the migration into Render because MarketIQ auto-deploys from `master`. Set the Render Start Command to `npx --yes prisma@6.19.0 migrate deploy && node src/server.js` (or disable auto-deploy, merge the code, apply the migration with `npm run prisma:migrate:deploy` against the production `DATABASE_URL`, then redeploy). The current `node src/server.js` command does not migrate. Never use `prisma migrate dev` in production.
 2. Merge/deploy the MarketIQ backend first and verify the migration and health check. Then deploy the storefront PR immediately. Pause seller variant create/edit operations during this short gap: the new backend requires package measurements while the old UI does not send them.
@@ -220,6 +220,6 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 4. Run the complete staged quote → option acceptance → checkout → Paystack verification flow against configured Logistic Hub credentials.
 5. Reconcile historical settlements/refunds recorded under the old gross-total allocation. This change does not rewrite historical ledger entries.
 
-Only after those gates pass should LI-02D implement the payment-verification transaction and durable shipment-authorization outbox. MarketIQ payment success must remain independent of Logistic Hub availability.
+LI-02D is now merged. These configured-Hub staging checks remain release gates before enabling LI-02E shipment submission in production. MarketIQ payment success remains independent of Logistic Hub availability.
 
 No production Render configuration, production database migration or deployment has been changed by these PRs.
