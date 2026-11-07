@@ -328,6 +328,11 @@ export const checkoutService = async (userId, payload) => {
           Number(quote.requestSnapshot?.request?.pickup?.longitude) !== Number(quote.warehouseMapping.warehouse.longitude) ||
           quote.requestSnapshot?.request?.pickupAddress !== quote.warehouseMapping.warehouse.address ||
           quote.requestSnapshot?.addressId !== payload.addressId ||
+          quote.requestSnapshot?.destinationLgaId !== delivery.deliveryLgaId ||
+          quote.requestSnapshot?.request?.destinationAddress !== delivery.deliveryAddress ||
+          quote.requestSnapshot?.request?.recipientName !== delivery.customerName ||
+          quote.requestSnapshot?.request?.recipientPhone !== delivery.customerPhone ||
+          quote.requestSnapshot?.request?.pickupServiceZoneId !== quote.warehouseMapping?.externalServiceZoneId ||
           JSON.stringify(quote.requestSnapshot?.cartSnapshot ?? []) !== JSON.stringify(buildCartSnapshot(
             cart.items.filter(item => item.variant.product.seller.id === quote.sellerId),
           )) ||
