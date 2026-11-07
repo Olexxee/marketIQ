@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Architecture and contract decisions approved for LI-02D planning. Documentation only: packing-photo capture, buyer review, cancellation coordination, payment-authorization changes and new media APIs are not yet implemented.
+**Status:** Contract v2. LI-02D payment-authorization outbox is implemented in the current MarketIQ feature branch; both backend CI workflows pass on the current PR head, pending review/merge. LI-02E shipment submission/retry, LI-02F inbound events and LI-02G packing evidence/buyer review remain future implementation. This document is not proof of deployment or staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -186,9 +186,11 @@ Logistic Hub preserves shipment, custody and packing evidence and provides audit
 1. LI-02C post-merge acceptance hardening: explicit package measurement units/source and legacy-data fail-closed behavior; exact integer-kobo/reference/currency validation in both Paystack verification paths; seller settlement capped at merchandise subtotal; payment-capture allocation across seller payable, Hub payable, delivery margin/subsidy and tax; suspense accounts for legacy delivery charges and unallocated refunds. Unit and PostgreSQL concurrency tests pass; configured-Hub staging and full checkout/payment acceptance remain release gates.
 
 **Production rollout gate:** MarketIQ Render auto-deploys from `master`, and its current start command does not apply Prisma migrations. Before merging the backend PR, configure the Render Start Command as `npx --yes prisma@6.19.0 migrate deploy && node src/server.js`, or disable auto-deploy and apply `npm run prisma:migrate:deploy` against the production database before redeploying. Deploy the backend first, verify the migration and health, then deploy the storefront; pause seller variant edits during the gap because the new backend requires measurements the old UI does not send. CI migration success applies only to its isolated test database.
-2. LI-02D: MarketIQ payment-verification transaction writes a durable shipment-authorization outbox event; payment response never waits for Hub.
+2. LI-02D: **implemented in feature branch, pending CI/review** — the shared Paystack success transaction writes one database-deduplicated authorization event for each SellerOrder with an accepted Hub quote. The generic event worker excludes this event type until the dedicated booking worker exists. No Hub network request is made in the payment path.
 3. LI-02E: embedded booking worker sends/retries authorization; Hub creates or recovers shipment idempotently and activates fulfilment.
 4. LI-02F: signed event receiver and customer-facing tracking projection, including packing-evidence and cancellation coordination events.
 5. LI-02G: four-photo media transfer, buyer review/cancellation policy, operational exception/return flows, reconciliation and staging end-to-end acceptance.
+
+LI-02D events preserve the accepted quote request/option snapshot and the billing-agreement reference/version captured when the quote was requested. Configure `LOGISTIC_HUB_BILLING_AGREEMENT_VERSION` before authorizing live shipments. Events missing required contract facts are retained with explicit blocking reasons and must not be submitted by LI-02E.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.

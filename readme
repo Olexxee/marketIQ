@@ -56,13 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A, LI-02B and LI-02C are merged. Phase A acceptance hardening is under review in MarketIQ PR #14 and storefront PR #9; LI-02D remains blocked on staging acceptance.**
+**LI-01, LI-02A, LI-02B, LI-02C and Phase A acceptance hardening are merged. LI-02D payment-authorization outbox is implemented on a feature branch; both backend CI workflows pass on the current PR head; shipment delivery/retry remains LI-02E.**
 
 **Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
 MarketIQ will integrate with Logistic Hub as an external logistics provider.
 
-LI-02C quote acquisition and checkout pricing are merged. Phase A acceptance hardening is proposed in MarketIQ PR #14 and storefront PR #9: explicit kg/g and cm/mm package measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation in both verification paths; seller settlement capped at merchandise subtotal; payment capture ledger separation for seller payable, Hub payable, delivery margin/subsidy and tax; and suspense accounts for legacy delivery charges and unallocated refunds. The backend PR has passed Prisma validation, migration deployment and 92/92 tests in both backend workflows; the storefront Vercel check has passed. Neither PR is merged. The v2 contract is authoritative for payment authority, privacy, packing evidence and cancellation boundaries. The applications remain independently deployable services with separate databases and domain ownership. This is an integration, not an application merger or shared-database arrangement.
+LI-02C quote acquisition, checkout pricing and Phase A acceptance hardening are merged. The merged work adds explicit kg/g and cm/mm measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation; seller settlement capped at merchandise subtotal; payment-capture ledger separation and suspense allocation; quote-expiry, concurrency and retry coverage. LI-02D adds a database-unique outbox dedupe key and atomically records one shipment-authorization event for each SellerOrder with an accepted Logistic Hub quote. The event includes verified payment facts, exact delivery minor units, accepted quote/option references, billing-agreement reference/version snapshot and stable idempotency/correlation identity. It does not call Logistic Hub; the dedicated booking worker is LI-02E. The applications remain independently deployable services with separate databases and domain ownership.
 
 ### Agreed commercial and shipment model
 

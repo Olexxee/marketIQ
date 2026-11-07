@@ -18,6 +18,7 @@ import { EVENT_TYPES } from "../events/event.types.js";
 import { recordPaymentCaptureLedger, recordRefundLedger } from "./payment.ledger.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import { toMinorUnits } from "../logistics/money.js";
+import { buildShipmentAuthorizationEvent } from "./shipment-authorization.js";
 import {
   getPaystackPaymentMismatch,
   describePaystackPaymentMismatch,
@@ -46,6 +47,7 @@ import {
   findPaymentsByOrderId,
   findPendingPaymentForOrder,
   updateManySellerOrderStatusByOrder,
+  findSellerOrdersWithLogisticsQuotes,
   withTransaction,
 } from "./payment.db.js";
 
@@ -351,6 +353,24 @@ const applySuccessfulPayment = async (paymentId, rawEvent) => {
 
     await updateManySellerOrderStatusByOrder(payment.orderId, "CONFIRMED", tx);
     await recalculateOrderStatus(payment.orderId, tx);
+
+    // Payment, order state, ledger, inventory and shipment authorization
+    // outbox rows commit atomically. No Logistic Hub network call occurs here.
+    const [order, sellerOrders] = await Promise.all([
+      findOrderWithPaymentContext(payment.orderId, tx),
+      findSellerOrdersWithLogisticsQuotes(payment.orderId, tx),
+    ]);
+    const verifiedAt = new Date();
+    for (const sellerOrder of sellerOrders) {
+      const authorizationEvent = buildShipmentAuthorizationEvent({
+        payment,
+        order: { id: payment.orderId, orderNumber: order?.orderNumber ?? null },
+        sellerOrder,
+        verifiedAt,
+      });
+      if (!authorizationEvent) continue;
+      await publishEvent(authorizationEvent, tx);
+    }
 
     await publishEvent({
       eventType: EVENT_TYPES.PAYMENT_COMPLETED,
