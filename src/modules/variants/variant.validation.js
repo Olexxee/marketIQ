@@ -17,9 +17,11 @@ export const createVariantSchema = z.object({
   price: decimalAmount,
   compareAtPrice: decimalAmount.nullable().optional(),
   weight: decimalAmount.optional(),
+  weightUnit: z.enum(["KG", "G"]).optional(),
   length: decimalAmount.nullable().optional(),
   width: decimalAmount.nullable().optional(),
   height: decimalAmount.nullable().optional(),
+  dimensionUnit: z.enum(["CM", "MM"]).optional(),
   fulfillmentType: z
     .enum(["LOCAL", "IMPORT", "PREORDER", "DIGITAL"])
     .optional(),
