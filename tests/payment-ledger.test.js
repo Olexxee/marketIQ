@@ -73,5 +73,23 @@ test("refund creates a balanced ledger transaction and stable idempotency key", 
   assert.equal(ledger.type, "REFUND");
   assert.equal(ledger.idempotencyKey, "refund:refund_1");
   assert.equal(ledger.entries.create.length, 2);
+  assert.equal(ledger.entries.create[0].account, "REFUND_UNALLOCATED");
+  assert.equal(ledger.entries.create[0].direction, "DEBIT");
+  assertBalanced(ledger.entries.create);
+});
+
+test("duplicate or late successful-payment refunds clear buyer refund liability", async () => {
+  const refund = {
+    id: "refund_duplicate_1",
+    orderId: "order_1",
+    paymentId: "payment_1",
+    amount: 250,
+    currency: "NGN",
+    reason: "Duplicate successful payment",
+    providerReference: "provider-refund-duplicate",
+  };
+  const ledger = await captureLedger((tx) => recordRefundLedger(refund, tx));
+
+  assert.equal(ledger.entries.create[0].account, "BUYER_REFUND");
   assertBalanced(ledger.entries.create);
 });
