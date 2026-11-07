@@ -3,6 +3,10 @@ import { ConflictError, NotFoundError } from "../../classes/errorClasses.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { requestRefundService } from "../payments/payment.service.js";
+import {
+  assertSellerSettlementWithinSubtotal,
+  resolveSellerSettlementAmount,
+} from "./settlement-amount.js";
 
 const withTransaction = (callback) => prisma.$transaction(callback, { timeout: 15000 });
 
@@ -305,19 +309,18 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId, { a
       _sum: { amount: true },
     });
     const hasSucceededRefund = Number(succeededRefunds._sum.amount ?? 0) > 0;
-    const settlementAmount = amount === undefined ? Number(sellerOrder.total) : Number(amount);
-    if (!Number.isFinite(settlementAmount) || settlementAmount <= 0 || settlementAmount > Number(sellerOrder.total)) {
-      throw new ConflictError("Settlement amount must be positive and cannot exceed the seller order total");
-    }
-    if (hasSucceededRefund && (amount === undefined || settlementAmount >= Number(sellerOrder.total))) {
-      throw new ConflictError("A processed refund requires an explicitly reduced settlement amount");
-    }
-    if ((hasSucceededRefund || settlementAmount < Number(sellerOrder.total)) && !adjustmentReason?.trim()) {
-      throw new ConflictError("An adjustmentReason is required when settlement amount differs from the seller order total or refunds have been processed");
-    }
+    const settlementAmount = resolveSellerSettlementAmount({
+      amount,
+      subtotal: sellerOrder.subtotal,
+      hasSucceededRefund,
+      adjustmentReason,
+    });
 
     const existing = await tx.sellerSettlement.findUnique({ where: { sellerOrderId } });
     if (existing && existing.status !== "FAILED" && existing.status !== "CANCELLED") {
+      // Legacy requests may have been created against SellerOrder.total, which
+      // included the buyer's delivery charge. Never approve or reuse those.
+      assertSellerSettlementWithinSubtotal(existing.amount, sellerOrder.subtotal);
       return existing;
     }
     if (existing) {
@@ -327,7 +330,7 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId, { a
       });
       if (reset.count !== 1) throw new ConflictError("Settlement state changed before it could be re-requested");
       await tx.auditLog.create({
-        data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: existing.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null, retried: true } },
+        data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: existing.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null, basis: "MERCHANDISE_SUBTOTAL", retried: true } },
       });
       return tx.sellerSettlement.findUnique({ where: { id: existing.id } });
     }
@@ -343,7 +346,7 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId, { a
       },
     });
     await tx.auditLog.create({
-      data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: settlement.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null } },
+      data: { userId: actorId, action: "SELLER_SETTLEMENT_REQUESTED", resource: "SellerSettlement", resourceId: settlement.id, metadata: { sellerOrderId, amount: settlementAmount, adjustmentReason: adjustmentReason?.trim() || null, basis: "MERCHANDISE_SUBTOTAL" } },
     });
     return settlement;
   });
@@ -379,16 +382,19 @@ export const approveSellerSettlementService = async (actorId, settlementId) => {
     const succeededRefund = await tx.refund.count({
       where: { orderId: settlement.sellerOrder.orderId, status: "SUCCEEDED" },
     });
-    if (succeededRefund > 0 && (!settlement.adjustmentReason || Number(settlement.amount) >= Number(settlement.sellerOrder.total))) {
-      throw new ConflictError("Processed refunds require a documented adjusted settlement amount");
-    }
+    resolveSellerSettlementAmount({
+      amount: settlement.amount.toString(),
+      subtotal: settlement.sellerOrder.subtotal,
+      hasSucceededRefund: succeededRefund > 0,
+      adjustmentReason: settlement.adjustmentReason,
+    });
     const changed = await tx.sellerSettlement.updateMany({
       where: { id: settlementId, status: settlement.status },
       data: { status: "APPROVED", processedById: actorId, failureReason: null },
     });
     if (changed.count !== 1) throw new ConflictError("Settlement status changed before approval");
     await tx.auditLog.create({
-      data: { userId: actorId, action: "SELLER_SETTLEMENT_APPROVED", resource: "SellerSettlement", resourceId: settlementId, metadata: { sellerOrderId: settlement.sellerOrderId, amount: Number(settlement.amount) } },
+      data: { userId: actorId, action: "SELLER_SETTLEMENT_APPROVED", resource: "SellerSettlement", resourceId: settlementId, metadata: { sellerOrderId: settlement.sellerOrderId, amount: settlement.amount.toString(), basis: "MERCHANDISE_SUBTOTAL" } },
     });
     return tx.sellerSettlement.findUnique({ where: { id: settlementId } });
   });
@@ -424,9 +430,12 @@ export const markSellerSettlementPaidService = async (actorId, settlementId, ext
     const succeededRefund = await tx.refund.count({
       where: { orderId: settlement.sellerOrder.orderId, status: "SUCCEEDED" },
     });
-    if (succeededRefund > 0 && (!settlement.adjustmentReason || Number(settlement.amount) >= Number(settlement.sellerOrder.total))) {
-      throw new ConflictError("Processed refunds require a documented adjusted settlement amount");
-    }
+    resolveSellerSettlementAmount({
+      amount: settlement.amount.toString(),
+      subtotal: settlement.sellerOrder.subtotal,
+      hasSucceededRefund: succeededRefund > 0,
+      adjustmentReason: settlement.adjustmentReason,
+    });
 
     const changed = await tx.sellerSettlement.updateMany({
       where: { id: settlementId, status: "APPROVED" },
@@ -453,7 +462,7 @@ export const markSellerSettlementPaidService = async (actorId, settlementId, ext
       },
     });
     await tx.auditLog.create({
-      data: { userId: actorId, action: "SELLER_SETTLEMENT_PAID", resource: "SellerSettlement", resourceId: settlementId, metadata: { sellerOrderId: settlement.sellerOrderId, amount: Number(settlement.amount), externalReference } },
+      data: { userId: actorId, action: "SELLER_SETTLEMENT_PAID", resource: "SellerSettlement", resourceId: settlementId, metadata: { sellerOrderId: settlement.sellerOrderId, amount: settlement.amount.toString(), basis: "MERCHANDISE_SUBTOTAL", externalReference } },
     });
     return tx.sellerSettlement.findUnique({ where: { id: settlementId } });
   });
