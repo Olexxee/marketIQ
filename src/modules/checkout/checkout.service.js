@@ -10,6 +10,8 @@ import { EVENT_TYPES } from "../events/event.types.js";
 import { calculatePaymentExpiresAt } from "../orders/order.payment-policy.js";
 import {
   createOrder,
+  findAcceptedLogisticsQuotesForCheckout,
+  attachLogisticsQuoteToSellerOrder,
   createOrderItem,
   createSellerOrder,
   findAddressByUser,
@@ -115,7 +117,7 @@ const resolveDelivery = async (userId, payload, tx) => {
 // ORDER CREATION
 // ============================================================
 
-const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderSubtotal, payload, tx) => {
+const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderSubtotal, shippingTotal, payload, tx) => {
   return createOrder(
     {
       orderNumber: generateOrderNumber(),
@@ -133,9 +135,9 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
       deliveryLgaName: deliverySnapshot.lgaName,
       deliveryCityName: deliverySnapshot.cityName,
       subtotal: orderSubtotal,
-      shippingTotal: 0,
+      shippingTotal,
       tax: 0,
-      total: orderSubtotal,
+      total: orderSubtotal + shippingTotal,
       status: "PENDING",
       paymentStatus: "PENDING",
       paymentExpiresAt: calculatePaymentExpiresAt(),
@@ -145,7 +147,7 @@ const createMarketplaceOrder = async (userId, delivery, deliverySnapshot, orderS
   );
 };
 
-const createSellerMarketplaceOrder = async (orderId, group, subtotal, tx) => {
+const createSellerMarketplaceOrder = async (orderId, group, subtotal, shippingTotal, tx) => {
   const sellerLocationSnapshot =
     group.seller.stateId || group.seller.lgaId
       ? await findLocationSnapshot(
@@ -162,8 +164,8 @@ const createSellerMarketplaceOrder = async (orderId, group, subtotal, tx) => {
       orderId,
       sellerId: group.seller.id,
       subtotal,
-      shippingTotal: 0,
-      total: subtotal,
+      shippingTotal,
+      total: subtotal + shippingTotal,
       status: "PENDING",
       sellerStateId: group.seller.stateId ?? null,
       sellerLgaId: group.seller.lgaId ?? null,
@@ -281,15 +283,39 @@ export const checkoutService = async (userId, payload) => {
       tx,
     );
 
-    // 4. Group cart items by seller
+    // 4. Group cart items by seller and validate buyer-selected delivery quotes.
     const sellerGroups = groupItemsBySeller(cart.items);
+    const quoteIds = payload.logisticsQuoteIds ?? [];
+    const logisticsQuotes = await findAcceptedLogisticsQuotesForCheckout(quoteIds, cart.id, tx);
+    if (logisticsQuotes.length !== quoteIds.length) {
+      throw new ConflictError("One or more delivery quotes are invalid, already used, or no longer accepted.");
+    }
+    const quotesBySeller = new Map();
+    for (const quote of logisticsQuotes) {
+      if (!quote.provider?.isActive || quote.currency !== "NGN" ||
+          !quote.selectedOption || (quote.selectedOption.expiresAt && quote.selectedOption.expiresAt <= new Date()) ||
+          quote.expiresAt <= new Date() || quote.selectedOptionId == null ||
+          quote.customerDeliveryChargeMinor !== quote.selectedOption.customerDeliveryChargeMinor ||
+          quote.agreedLogisticsCostMinor !== quote.selectedOption.agreedLogisticsCostMinor) {
+        throw new ConflictError("A selected delivery quote has expired or its price snapshot is inconsistent.");
+      }
+      if (quotesBySeller.has(quote.sellerId)) throw new BadRequestError("Only one delivery quote may be selected per seller.");
+      if (!sellerGroups.some((group) => group.seller.id === quote.sellerId)) {
+        throw new BadRequestError("A delivery quote does not belong to a seller in this cart.");
+      }
+      quotesBySeller.set(quote.sellerId, quote);
+    }
 
-    // 5. Calculate order totals
+    // 5. Calculate merchandise and delivery totals independently.
     let orderSubtotal = 0;
+    let orderShippingTotal = 0;
     const sellerTotals = sellerGroups.map((group) => {
       const subtotal = calculateSellerSubtotal(group.items);
       orderSubtotal += subtotal;
-      return { sellerId: group.seller.id, subtotal };
+      const quote = quotesBySeller.get(group.seller.id);
+      const shippingTotal = quote ? Number(quote.customerDeliveryChargeMinor) / 100 : 0;
+      orderShippingTotal += shippingTotal;
+      return { sellerId: group.seller.id, subtotal, shippingTotal, quoteId: quote?.id ?? null };
     });
 
     // 6. Create parent order
@@ -298,6 +324,7 @@ export const checkoutService = async (userId, payload) => {
       delivery,
       deliverySnapshot,
       orderSubtotal,
+      orderShippingTotal,
       payload,
       tx,
     );
@@ -312,10 +339,15 @@ export const checkoutService = async (userId, payload) => {
         order.id,
         group,
         sellerTotal.subtotal,
+        sellerTotal.shippingTotal,
         tx,
       );
 
       await createMarketplaceOrderItems(order, sellerOrder, group, tx);
+      if (sellerTotal.quoteId) {
+        const attached = await attachLogisticsQuoteToSellerOrder(sellerTotal.quoteId, sellerOrder.id, tx);
+        if (attached.count !== 1) throw new ConflictError("Delivery quote was concurrently consumed by another checkout.");
+      }
     }
 
     await recordOrderCreatedActivity(
