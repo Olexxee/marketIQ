@@ -29,14 +29,14 @@ CREATE TABLE "LogisticsPackageCategoryMapping" (
 
 CREATE UNIQUE INDEX "LogisticsServiceZoneMapping_providerId_lgaId_key"
 ON "LogisticsServiceZoneMapping"("providerId", "lgaId");
-CREATE UNIQUE INDEX "LogisticsServiceZoneMapping_providerId_externalServiceZoneId_key"
+CREATE INDEX "LogisticsServiceZoneMapping_providerId_externalServiceZoneId_idx"
 ON "LogisticsServiceZoneMapping"("providerId", "externalServiceZoneId");
 CREATE INDEX "LogisticsServiceZoneMapping_lgaId_isActive_idx"
 ON "LogisticsServiceZoneMapping"("lgaId", "isActive");
 
 CREATE UNIQUE INDEX "LogisticsPackageCategoryMapping_providerId_categoryId_key"
 ON "LogisticsPackageCategoryMapping"("providerId", "categoryId");
-CREATE UNIQUE INDEX "LogisticsPackageCategoryMapping_providerId_externalPackageCategory_key"
+CREATE INDEX "LogisticsPackageCategoryMapping_providerId_externalPackageCategory_idx"
 ON "LogisticsPackageCategoryMapping"("providerId", "externalPackageCategory");
 CREATE INDEX "LogisticsPackageCategoryMapping_categoryId_isActive_idx"
 ON "LogisticsPackageCategoryMapping"("categoryId", "isActive");
