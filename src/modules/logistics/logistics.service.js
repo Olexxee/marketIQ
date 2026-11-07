@@ -116,7 +116,7 @@ const presentQuote = quote => ({
   assessment: quote.responseSnapshot?.quoteSession?.assessment ?? null,
 });
 
-export const createDeliveryQuoteService = async (userId, { sellerId, addressId }, idempotencyKey) => {
+export const createDeliveryQuoteService = async (userId, { sellerId, addressId, customerName, customerPhone }, idempotencyKey) => {
   const [cart, address, provider] = await Promise.all([
     findActiveCartForSeller(userId, sellerId),
     findOwnedDeliveryAddress(addressId, userId),
@@ -171,8 +171,8 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
     pickup: { latitude: pickup.latitude, longitude: pickup.longitude },
     destinationAddress: address.addressLine,
     destination: { latitude: destination.latitude, longitude: destination.longitude },
-    recipientName: address.fullName,
-    recipientPhone: address.phone,
+    recipientName: customerName ?? address.fullName,
+    recipientPhone: customerPhone ?? address.phone,
     packages,
     expiresInMinutes: 60,
   };
@@ -182,6 +182,7 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
 
   const requestSnapshot = {
     addressId,
+    destinationLgaId: address.lgaId,
     cartSnapshot: buildCartSnapshot(cart.items),
     warehouseMappingId: warehouseMapping.id,
     destinationServiceZoneMappingId: destinationZone.id,
