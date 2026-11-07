@@ -134,6 +134,9 @@ enum LedgerTransactionType {
 enum LedgerAccount {
   PAYMENT_CLEARING
   SELLER_PAYABLE
+  LOGISTICS_PAYABLE
+  LOGISTICS_SUBSIDY
+  TAX_PAYABLE
   PLATFORM_REVENUE
   BUYER_REFUND
 }
@@ -165,6 +168,22 @@ enum FulfillmentType {
   IMPORT
   PREORDER
   DIGITAL
+}
+
+enum WeightUnit {
+  KG
+  G
+}
+
+enum DimensionUnit {
+  CM
+  MM
+}
+
+enum MeasurementSource {
+  SELLER_DECLARED
+  PLATFORM_MEASURED
+  HUB_MEASURED
 }
 
 enum FulfillmentStatus {
@@ -873,10 +892,13 @@ model ProductVariant {
   compareAtPrice Decimal? @db.Decimal(12, 2)
 
   weight Decimal @default(0) @db.Decimal(10, 3)
+  weightUnit WeightUnit?
 
   length Decimal? @db.Decimal(10, 2)
   width  Decimal? @db.Decimal(10, 2)
   height Decimal? @db.Decimal(10, 2)
+  dimensionUnit DimensionUnit?
+  measurementSource MeasurementSource?
 
   fulfillmentType FulfillmentType @default(LOCAL)
 
