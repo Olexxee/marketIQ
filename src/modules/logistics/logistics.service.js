@@ -109,10 +109,11 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId }
   if (!cart || cart.items.length === 0) throw new NotFoundError("No active cart items were found for this seller.");
   if (cart.items.some(item =>
     !item.variant.isActive ||
+    item.variant.fulfillmentType === "DIGITAL" ||
     item.variant.product.status !== "ACTIVE" ||
     item.variant.product.seller.status !== "ACTIVE"
   )) {
-    throw new ConflictError("The seller cart contains a product, variant, or seller that is no longer eligible for delivery.");
+    throw new ConflictError("The seller cart contains an inactive item, digital item, or inactive seller and cannot be quoted for parcel delivery.");
   }
   if (!address) throw new NotFoundError("Delivery address not found.");
   if (!provider) throw new ServiceUnavailableError("Logistic Hub is not configured as an active delivery provider.");
