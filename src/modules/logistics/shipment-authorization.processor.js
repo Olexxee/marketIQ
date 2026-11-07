@@ -1,4 +1,5 @@
 import { createLogisticHubClient } from "./logistic-hub.client.js";
+import { toMinorUnits } from "./money.js";
 
 const MINOR_AMOUNT_PATTERN = /^(0|[1-9]\d*)$/;
 
@@ -57,7 +58,7 @@ const validateContext = (event, sellerOrder) => {
     payload.currency !== quote.currency ||
     payload.currency !== quote.selectedOption.currency ||
     BigInt(deliveryAmountMinor) !== quote.customerDeliveryChargeMinor ||
-    BigInt(deliveryAmountMinor) !== BigInt(Math.round(Number(sellerOrder.shippingTotal) * 100))
+    BigInt(deliveryAmountMinor) !== BigInt(toMinorUnits(sellerOrder.shippingTotal.toString()))
   ) {
     throw new ShipmentAuthorizationError("Authorization no longer matches the accepted quote and seller-order delivery amount.", {
       code: "AUTHORIZATION_SNAPSHOT_MISMATCH",
