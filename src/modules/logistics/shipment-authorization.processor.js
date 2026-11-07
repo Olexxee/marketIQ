@@ -36,6 +36,17 @@ const validateContext = (event, sellerOrder) => {
     });
   }
 
+  if (
+    event.aggregateType !== "SELLER_ORDER" ||
+    event.aggregateId !== payload.sellerOrderId ||
+    payload.orderId !== sellerOrder.orderId ||
+    payload.idempotencyKey !== `mqi-shipment-${sellerOrder.id}-v1`
+  ) {
+    throw new ShipmentAuthorizationError("Outbox aggregate or idempotency identity does not match the seller order.", {
+      code: "SHIPMENT_EVENT_IDENTITY_MISMATCH",
+    });
+  }
+
   const quoteRequest = quote.requestSnapshot?.request ?? {};
   const deliveryAmountMinor = requireMinorAmount(payload.deliveryAmountMinor, "delivery amount");
   const orderPaymentAmountMinor = requireMinorAmount(payload.paymentAmountMinor, "payment amount");
@@ -75,7 +86,10 @@ const validateContext = (event, sellerOrder) => {
       code: "MISSING_LOGISTICS_COST",
     });
   }
-  if (!sellerOrder.logisticsQuote.provider?.isActive) {
+  if (
+    sellerOrder.logisticsQuote.provider?.code !== "LOGISTIC_HUB" ||
+    !sellerOrder.logisticsQuote.provider?.isActive
+  ) {
     throw new ShipmentAuthorizationError("The Logistic Hub provider is not active in MarketIQ configuration.", {
       code: "LOGISTICS_PROVIDER_INACTIVE",
       retryable: true,
