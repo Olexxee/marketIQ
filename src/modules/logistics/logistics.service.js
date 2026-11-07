@@ -232,7 +232,7 @@ export const createDeliveryQuoteService = async (userId, { sellerId, addressId, 
       customerDeliveryChargeMinor: parseMinorUnits(option.customerChargeMinor, "customer delivery charge"),
       agreedLogisticsCostMinor: parseMinorUnits(option.logisticsCostMinor, "agreed logistics cost"),
       currency: option.currency,
-      serviceLevel: option.optionCode ?? option.routeMode ?? null,
+      serviceLevel: option.routeMode ?? option.optionCode ?? null,
       expiresAt: optionExpiry,
       optionSnapshot: option,
     };
