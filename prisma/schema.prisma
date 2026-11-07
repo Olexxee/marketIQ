@@ -773,6 +773,7 @@ model Category {
   sourcingRequests SourcingRequest[]
   media            Media[]
   marketActivities MarketActivity[]
+  logisticsPackageCategoryMappings LogisticsPackageCategoryMapping[]
 
   @@index([parentId])
   @@index([isActive])
