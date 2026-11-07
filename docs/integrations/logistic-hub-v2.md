@@ -183,7 +183,9 @@ Logistic Hub preserves shipment, custody and packing evidence and provides audit
 
 ## 10. LI-02 delivery sequence
 
-1. LI-02C post-merge acceptance hardening: implement explicit package measurement units/source and legacy-data fail-closed behavior; apply exact integer-kobo/reference/currency validation to both Paystack verification paths; cap seller settlement at merchandise subtotal; split payment-capture ledger allocations into seller payable, Hub payable, delivery margin/subsidy, tax and legacy delivery suspense. Unit and PostgreSQL concurrency tests are part of the implementation; configured-Hub staging and full checkout/payment acceptance remain release gates.
+1. LI-02C post-merge acceptance hardening: explicit package measurement units/source and legacy-data fail-closed behavior; exact integer-kobo/reference/currency validation in both Paystack verification paths; seller settlement capped at merchandise subtotal; payment-capture allocation across seller payable, Hub payable, delivery margin/subsidy and tax; suspense accounts for legacy delivery charges and unallocated refunds. Unit and PostgreSQL concurrency tests pass; configured-Hub staging and full checkout/payment acceptance remain release gates.
+
+**Production migration gate:** MarketIQ's Render start command does not apply Prisma migrations. Before the new backend version serves requests, run `npm run prisma:migrate:deploy` against the MarketIQ production database. CI migration success applies only to its isolated test database.
 2. LI-02D: MarketIQ payment-verification transaction writes a durable shipment-authorization outbox event; payment response never waits for Hub.
 3. LI-02E: embedded booking worker sends/retries authorization; Hub creates or recovers shipment idempotently and activates fulfilment.
 4. LI-02F: signed event receiver and customer-facing tracking projection, including packing-evidence and cancellation coordination events.
