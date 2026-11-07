@@ -4,6 +4,7 @@ import { cuid } from "../../lib/validators.js";
 export const checkoutSchema = z
   .object({
     addressId: cuid.optional(),
+    logisticsQuoteIds: z.array(cuid).max(50).optional().default([]),
 
     deliveryAddress: z.string().trim().min(1).optional(),
     deliveryCountryId: cuid.optional(),
