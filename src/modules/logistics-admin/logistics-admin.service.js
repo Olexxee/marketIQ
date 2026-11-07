@@ -139,7 +139,7 @@ export const verifyWarehouseCoordinatesService = async (actorId, id, input) => {
     // mapping attached to this warehouse. Re-verification and reactivation are
     // intentionally separate admin actions.
     const invalidatedMappings = await tx.logisticsWarehouseMapping.updateMany({
-      where: { warehouseId: id, isActive: true },
+      where: { warehouseId: id, OR: [{ isActive: true }, { verifiedAt: { not: null } }] },
       data: { isActive: false, verifiedAt: null },
     });
 
@@ -294,5 +294,47 @@ export const deactivatePackageCategoryMappingService = async (actorId, id) =>
     if (!current) throw new NotFoundError("Logistics package-category mapping not found");
     const mapping = await tx.logisticsPackageCategoryMapping.update({ where: { id }, data: { isActive: false } });
     await audit(tx, actorId, "LOGISTICS_PACKAGE_CATEGORY_MAPPING_DEACTIVATED", "LogisticsPackageCategoryMapping", id, {});
+    return mapping;
+  });
+
+
+export const updateWarehouseMappingService = async (actorId, id, input) =>
+  prisma.$transaction(async (tx) => {
+    const current = await tx.logisticsWarehouseMapping.findUnique({ where: { id } });
+    if (!current) throw new NotFoundError("Logistics warehouse mapping not found");
+    const mapping = await tx.logisticsWarehouseMapping.update({
+      where: { id },
+      data: { ...input, isActive: false, verifiedAt: null },
+    });
+    await audit(tx, actorId, "LOGISTICS_WAREHOUSE_MAPPING_UPDATED", "LogisticsWarehouseMapping", id, {
+      changedFields: Object.keys(input),
+      reVerificationRequired: true,
+    });
+    return mapping;
+  });
+
+export const updateServiceZoneMappingService = async (actorId, id, input) =>
+  prisma.$transaction(async (tx) => {
+    const current = await tx.logisticsServiceZoneMapping.findUnique({ where: { id } });
+    if (!current) throw new NotFoundError("Logistics service-zone mapping not found");
+    const mapping = await tx.logisticsServiceZoneMapping.update({
+      where: { id }, data: { ...input, isActive: false, verifiedAt: null },
+    });
+    await audit(tx, actorId, "LOGISTICS_SERVICE_ZONE_MAPPING_UPDATED", "LogisticsServiceZoneMapping", id, {
+      changedFields: Object.keys(input), reVerificationRequired: true,
+    });
+    return mapping;
+  });
+
+export const updatePackageCategoryMappingService = async (actorId, id, input) =>
+  prisma.$transaction(async (tx) => {
+    const current = await tx.logisticsPackageCategoryMapping.findUnique({ where: { id } });
+    if (!current) throw new NotFoundError("Logistics package-category mapping not found");
+    const mapping = await tx.logisticsPackageCategoryMapping.update({
+      where: { id }, data: { ...input, isActive: false, verifiedAt: null },
+    });
+    await audit(tx, actorId, "LOGISTICS_PACKAGE_CATEGORY_MAPPING_UPDATED", "LogisticsPackageCategoryMapping", id, {
+      changedFields: Object.keys(input), reVerificationRequired: true,
+    });
     return mapping;
   });
