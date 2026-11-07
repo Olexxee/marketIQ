@@ -34,6 +34,7 @@ import adminOperationsRouter from "./modules/admin-operations/admin-operations.r
 import logisticsAdminRouter from "./modules/logistics-admin/logistics-admin.routes.js";
 import logisticsRouter from "./modules/logistics/logistics.routes.js";
 import { paystackWebhook } from "./modules/payments/payment.webhook.js";
+import { receiveLogisticHubWebhook } from "./modules/logistics/logistic-hub.webhook.controller.js";
 
 import productRouter from "./modules/products/product.routes.js";
 import productSellerRouter from "./modules/products/product.seller.routes.js";
@@ -68,6 +69,12 @@ app.set("trust proxy", 1);
 // ============================================================
 // SECURITY + PARSING
 // ============================================================
+
+app.post(
+  "/api/integrations/logistic-hub/webhook",
+  express.raw({ type: "application/json", limit: "256kb" }),
+  receiveLogisticHubWebhook,
+);
 
 app.post(
   "/api/payments/webhook",
