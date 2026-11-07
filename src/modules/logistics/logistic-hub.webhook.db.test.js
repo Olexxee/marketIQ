@@ -109,9 +109,6 @@ test("records a sequence collision as a failed receipt without overwriting track
 });
 
 test("does not acknowledge an event before its shipment booking is locally persisted", async () => {
-  const { repository } = makeRepository();
-  const { state } = makeRepository();
-  state.shipment = null;
   const failing = createLogisticHubWebhookRepository({
     prismaClient: {
       $transaction: work => work({
@@ -125,5 +122,4 @@ test("does not acknowledge an event before its shipment booking is locally persi
     failing.persistVerifiedEvent(makeVerified("hub-event-1", 1, "AWAITING_PARTNER_ASSIGNMENT")),
     error => error.statusCode === 503 && error.code === "LOGISTIC_HUB_SHIPMENT_NOT_READY",
   );
-  assert.ok(repository);
 });
