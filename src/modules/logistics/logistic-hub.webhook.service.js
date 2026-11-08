@@ -6,6 +6,8 @@ const SUPPORTED_EVENT_TYPES = new Set([
   "shipment.in_transit",
   "shipment.custody_handover_confirmed",
   "shipment.delivery_leg_completed",
+  "shipment.cancelled",
+  "shipment.return_requested",
 ]);
 
 export class LogisticHubWebhookError extends Error {
