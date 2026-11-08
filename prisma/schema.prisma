@@ -349,6 +349,8 @@ enum ShipmentReviewStatus {
   CANCELLATION_CONFIRMED
   RETURN_REQUESTED
   CLOSED
+  CANCELLATION_REJECTED
+  CANCELLATION_COMMAND_FAILED
 }
 
 enum LogisticsWebhookStatus {
@@ -1361,6 +1363,7 @@ model SellerOrder {
   logisticsQuote LogisticsQuote?
   logisticsShipment LogisticsShipment?
   shipmentReview ShipmentReview?
+  shipmentResolutionRequest ShipmentResolutionRequest?
   shipmentResolutionRequest ShipmentResolutionRequest?
 
   @@unique([orderId, sellerId])
