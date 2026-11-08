@@ -18,7 +18,9 @@ import {
   settlementRequestSchema,
   resolveDisputeSchema,
   paymentReconciliationListQuerySchema,
-  paymentReconciliationResolveSchema,\n  logisticsResolutionReviewIdParamSchema,\n  logisticsResolutionReviewListQuerySchema,
+  paymentReconciliationResolveSchema,
+  logisticsResolutionReviewIdParamSchema,
+  logisticsResolutionReviewListQuerySchema,
 } from "./admin-operations.validation.js";
 import {
   getDispute,
@@ -34,7 +36,9 @@ import {
   resolveDispute,
   reviewDispute,
   listPaymentReconciliation,
-  resolvePaymentReconciliation,\n  listLogisticsResolutionReviews,\n  getLogisticsResolutionReview,
+  resolvePaymentReconciliation,
+  listLogisticsResolutionReviews,
+  getLogisticsResolutionReview,
 } from "./admin-operations.controller.js";
 
 const router = Router();
@@ -45,7 +49,10 @@ router.get("/disputes/:id", authorize("ADMIN", "STAFF"), validateParams(disputeI
 router.post("/disputes/:id/review", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), reviewDispute);
 router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeIdParamSchema), validateBody(resolveDisputeSchema), resolveDispute);
 
-router.get("/logistics-resolutions", authorize("ADMIN"), validateQuery(logisticsResolutionReviewListQuerySchema), listLogisticsResolutionReviews);\nrouter.get("/logistics-resolutions/:id", authorize("ADMIN"), validateParams(logisticsResolutionReviewIdParamSchema), getLogisticsResolutionReview);\n\nrouter.get("/payment-reconciliation", authorize("ADMIN"), validateQuery(paymentReconciliationListQuerySchema), listPaymentReconciliation);
+router.get("/logistics-resolutions", authorize("ADMIN"), validateQuery(logisticsResolutionReviewListQuerySchema), listLogisticsResolutionReviews);
+router.get("/logistics-resolutions/:id", authorize("ADMIN"), validateParams(logisticsResolutionReviewIdParamSchema), getLogisticsResolutionReview);
+
+router.get("/payment-reconciliation", authorize("ADMIN"), validateQuery(paymentReconciliationListQuerySchema), listPaymentReconciliation);
 router.post("/payment-reconciliation/:id/resolve", authorize("ADMIN"), validateParams(refundIdParamSchema), validateBody(paymentReconciliationResolveSchema), resolvePaymentReconciliation);
 router.get("/refunds", authorize("ADMIN"), validateQuery(refundListQuerySchema), listRefunds);
 router.post("/orders/:orderId/refunds", authorize("ADMIN"), validateParams(orderIdParamSchema), validateBody(refundRequestSchema), requestRefund);
