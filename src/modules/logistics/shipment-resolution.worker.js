@@ -1,6 +1,6 @@
 import prisma from "../../config/prisma.js";
 import { env } from "../../config/env.js";
-import { createLogisticHubClient } from "./logistic-hub.client.js";
+import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import { sendCustodyAwareShipmentResolution } from "./shipment-resolution.processor.js";
 
 const EVENT_TYPE = "LOGISTICS_SHIPMENT_RESOLUTION_REQUESTED";
@@ -39,6 +39,9 @@ const processEvent = async event => {
     });
   }
   try {
+    if (typeof requestId !== "string" || requestId.length === 0) {
+      throw Object.assign(new Error("Shipment resolution outbox event is missing its request identity."), { retryable: false });
+    }
     const request = await prisma.shipmentResolutionRequest.findUnique({
       where: { id: requestId },
       include: { shipment: { include: { provider: true } } },
