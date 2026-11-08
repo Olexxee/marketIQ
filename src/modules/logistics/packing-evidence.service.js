@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import { findSellerFulfillmentForPackingEvidence, findBuyerShipmentForPackingEvidence } from "./packing-evidence.db.js";
 import { PACKING_EVIDENCE_SLOTS } from "./packing-evidence.validation.js";
-import { startPackingReview, findBuyerPackingReview, approveBuyerPackingReview } from "./shipment-review.db.js";
+import { ensureShipmentReviewForBookedShipment, startPackingReview, findBuyerPackingReview, approveBuyerPackingReview } from "./shipment-review.db.js";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const SIGNATURES = {
@@ -64,8 +64,8 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
   ) {
     throw new ConflictError("Packing evidence can only be submitted for a paid seller order with a booked Logistic Hub shipment.");
   }
-  const reviewGate = shipment.packingReview;
-  if (!reviewGate || reviewGate.status !== "WAITING_FOR_EVIDENCE") {
+  const reviewGate = shipment.packingReview ?? await ensureShipmentReviewForBookedShipment(fulfillment.sellerOrder.id);
+  if (reviewGate.status !== "WAITING_FOR_EVIDENCE") {
     throw new ConflictError("Packing evidence is frozen because the shipment is not awaiting evidence.");
   }
   if (reviewGate.evidenceDeadlineAt <= new Date()) {
