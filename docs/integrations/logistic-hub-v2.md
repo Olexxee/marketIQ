@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A and LI-02G-C2 are merged across the two backends. LI-02G-C3 is implementing MarketIQ buyer cancellation requests, durable Hub stop/return commands and a separate resolution state machine. The shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A and LI-02G-C2 are merged across the two backends. LI-02G-C3 is in review on MarketIQ PR #22: buyer cancellation requests, durable Hub stop/return commands and a separate resolution state machine are implemented on the feature branch but not yet merged. The shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
