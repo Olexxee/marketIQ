@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma.js";
 import { EVENT_TYPES } from "../events/event.types.js";
+import { ensureShipmentReviewForBookedShipment } from "./shipment-review.db.js";
 
 const SHIPMENT_EVENT = EVENT_TYPES.LOGISTICS_SHIPMENT_AUTHORIZATION_REQUESTED;
 
@@ -161,3 +162,5 @@ export const markLocalLogisticsShipmentFailure = ({
     },
   });
 };
+
+export { ensureShipmentReviewForBookedShipment };

@@ -163,7 +163,10 @@ export const createShipmentAuthorizationProcessor = ({
     },
   });
 
-  if (localShipment.status === "BOOKED") return { replay: true, shipment: localShipment };
+  if (localShipment.status === "BOOKED") {
+    await repository.ensureShipmentReviewForBookedShipment?.(sellerOrder.id);
+    return { replay: true, shipment: localShipment };
+  }
 
   const client = clientFactory({
     config: {
@@ -185,5 +188,6 @@ export const createShipmentAuthorizationProcessor = ({
     providerShipment,
     responseSnapshot: response,
   });
+  await repository.ensureShipmentReviewForBookedShipment?.(sellerOrder.id);
   return { replay: Boolean(response?.replay), shipment: providerShipment };
 };

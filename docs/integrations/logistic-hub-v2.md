@@ -1,8 +1,10 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D, LI-02E, LI-02F and LI-02G-A packing evidence are merged. LI-02G-B buyer review and cancellation coordination remain unimplemented pending explicit policy decisions. The LI-02E worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** Contract v2. LI-02D, LI-02E, LI-02F and LI-02G-A are merged. LI-02G-B is in implementation: Logistic Hub dispatch-gate/freeze PR #115 is open, and MarketIQ buyer-review persistence, four-hour timer and dispatch-release outbox are on the current feature branch. Buyer cancellation/return coordination is not yet implemented. The shared embedded worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
+
+**Storefront implementation specification:** [Orders, fulfilment, packing evidence and buyer review](https://github.com/Olexxee/marketIQ-storefront/blob/docs/li-02g-frontend-packing-evidence/docs/logistics-packing-evidence-workflow.md).
 
 ## 1. Purpose and system boundary
 
@@ -118,17 +120,21 @@ Packing evidence upload is not proof of pickup, custody or delivery. LI-02G-A do
 
 MarketIQ owns the buyer-facing order timeline, evidence visibility, review-window policy and buyer cancellation decision. Logistic Hub owns execution of accepted operational instructions.
 
-Target flow:
+Approved LI-02G-B policy baseline and implementation sequence:
 
-1. Seller prepares the seller order and submits packing photographs into the four defined evidence slots.
-2. MarketIQ authenticates seller ownership and forwards each image to Logistic Hub using the private binary evidence endpoint.
-3. Logistic Hub validates and stores the image, preserves version history and records an internal evidence-received event.
-4. The buyer views the latest evidence versions through MarketIQ's buyer-authenticated proxy endpoints. LI-02G-A does not define a review timer or dispatch gate.
-5. LI-02G-B will define buyer issue/cancellation requests, seller response rules, Hub hold/stop/return coordination and dispatch authorization.
+1. Seller must submit all four required evidence slots within **24 hours of the Hub shipment booking timestamp**. The Hub records booking time; MarketIQ derives the evidence deadline from that immutable timestamp.
+2. After all four slots are accepted, MarketIQ asks Logistic Hub to freeze the evidence set. The Hub serializes the freeze against concurrent uploads and rejects all later uploads/replacements for that shipment. Evidence versions are therefore immutable during buyer review.
+3. MarketIQ starts a **four-hour buyer review window** only after the Hub confirms the freeze. MarketIQ notifies the buyer and exposes the latest four private images through buyer-authenticated endpoints.
+4. The buyer may approve early. MarketIQ records the decision and queues a durable dispatch-release command.
+5. If the buyer takes no action before the four-hour deadline, MarketIQ records automatic dispatch authorization and queues the same durable command with reason `REVIEW_TIMEOUT`. This timeout is a logistics-release rule, not a waiver of statutory consumer rights, warranty rights or post-delivery remedies.
+6. Logistic Hub enforces the dispatch gate at partner assignment. Assignment remains blocked until the authenticated MarketIQ client releases the hold. The Hub remains authoritative for assignment and custody state.
+7. If the seller has not completed all four slots within 24 hours, MarketIQ marks the review `EVIDENCE_OVERDUE`, keeps dispatch blocked and raises an operational exception. There is no automatic cancellation or refund for missing evidence.
+8. Buyer cancellation before pickup is a cancellation request, not a completed cancellation. After pickup, the buyer's request is treated as a return/stop request, not an immediate cancellation. Logistic Hub must confirm the actual custody outcome. Refund decisions and Paystack processing remain admin-controlled in MarketIQ.
+9. The seller cannot veto a buyer cancellation request. A seller rebuttal is handled through MarketIQ support and must not bypass the Hub custody state.
 
-The review-window duration, timeout behavior, refund eligibility, seller response rules and the exact point at which dispatch becomes irreversible remain policy decisions to be finalized before implementation. Do not invent an automatic-approval timeout in code before those rules are approved.
+The review and dispatch-release worker runs inside the existing MarketIQ server process; no separate Render worker service is introduced. It is controlled by the existing opt-in shipment-worker setting and remains disabled by default until staging acceptance. The current LI-02G-B implementation covers evidence freeze, buyer review, approval/timeout dispatch release and the Hub assignment gate. Cancellation/return commands and operational exception handling remain subsequent implementation work.
 
-A cancellation request is not a completed cancellation or refund. If a rider has already collected the parcel or it is in transit, the Hub may be unable to stop it immediately. The Hub reports actual custody and offers supported stop, hold, return-to-seller or return-to-hub actions. MarketIQ makes the customer refund decision and records the financial outcome.
+A cancellation request is never proof that a shipment has been stopped, returned or refunded. The Hub reports actual custody and supported stop/hold/return outcomes; MarketIQ records the financial decision separately.
 
 ## 6. Event ownership and external references
 

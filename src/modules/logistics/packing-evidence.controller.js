@@ -4,6 +4,8 @@ import {
   uploadPackingEvidenceService,
   listBuyerPackingEvidenceService,
   downloadBuyerPackingEvidenceService,
+  getBuyerPackingReviewService,
+  approveBuyerPackingReviewService,
 } from "./packing-evidence.service.js";
 
 export const uploadPackingEvidence = asyncWrapper(async (req, res) => {
@@ -30,4 +32,14 @@ export const downloadBuyerPackingEvidence = asyncWrapper(async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   return res.status(200).send(file.buffer);
+});
+
+export const getBuyerPackingReview = asyncWrapper(async (req, res) => {
+  const result = await getBuyerPackingReviewService(req.user.id, req.params.sellerOrderId);
+  return successResponse({ res, statusCode: 200, message: "Packing review retrieved", data: result });
+});
+
+export const approveBuyerPackingReview = asyncWrapper(async (req, res) => {
+  const result = await approveBuyerPackingReviewService(req.user.id, req.params.sellerOrderId);
+  return successResponse({ res, statusCode: 200, message: "Packing review approved; dispatch release queued", data: result });
 });

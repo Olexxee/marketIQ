@@ -11,11 +11,14 @@ export const findSellerFulfillmentForPackingEvidence = (fulfillmentId, sellerId)
           id: true,
           sellerId: true,
           status: true,
-          order: { select: { paymentStatus: true } },
+          order: { select: { paymentStatus: true, buyerId: true } },
           logisticsShipment: {
             select: {
+              id: true,
               externalReference: true,
               status: true,
+              bookedAt: true,
+              packingReview: { select: { status: true, evidenceDeadlineAt: true } },
               provider: { select: { code: true, baseUrl: true, isActive: true } },
             },
           },
