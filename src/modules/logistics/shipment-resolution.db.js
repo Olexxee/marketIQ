@@ -20,10 +20,16 @@ export const createBuyerShipmentResolutionRequest = async ({ buyerId, sellerOrde
     });
     if (!shipment || shipment.status !== "BOOKED") return { notFound: true };
 
+    await tx.$queryRaw`SELECT "id" FROM "LogisticsShipment" WHERE "id" = ${shipment.id} FOR UPDATE`;
+
     const existing = await tx.shipmentResolutionRequest.findUnique({
       where: { shipmentId: shipment.id },
     });
-    if (existing) return { request: existing, replay: true };
+    if (existing) {
+      return existing.reason === reason
+        ? { request: existing, replay: true }
+        : { conflict: true };
+    }
 
     if (shipment.packingReview && ["CLOSED", "CANCELLATION_CONFIRMED", "RETURN_REQUESTED"].includes(shipment.packingReview.status)) {
       return { conflict: true };
@@ -41,7 +47,10 @@ export const createBuyerShipmentResolutionRequest = async ({ buyerId, sellerOrde
 
     if (shipment.packingReview) {
       await tx.shipmentReview.updateMany({
-        where: { id: shipment.packingReview.id },
+        where: {
+          id: shipment.packingReview.id,
+          status: { in: ["WAITING_FOR_EVIDENCE", "PENDING_BUYER_REVIEW", "APPROVED", "AUTO_AUTHORIZED", "EVIDENCE_OVERDUE"] },
+        },
         data: {
           status: "CANCELLATION_REQUESTED",
           cancellationRequestedAt: new Date(),
