@@ -116,6 +116,8 @@ Packing evidence upload is not proof of pickup, custody or delivery. LI-02G-A do
 
 ## 5. Buyer review and cancellation coordination
 
+**Frontend implementation specification:** [MarketIQ Storefront — Orders, Fulfilment and Packing Evidence](https://github.com/Olexxee/marketIQ-storefront/blob/main/docs/logistics-packing-evidence-workflow.md). This describes proposed frontend routes and the exact backend endpoints. The storefront currently has no order-management screens; the UI work remains separate from the merged backend implementation.
+
 MarketIQ owns the buyer-facing order timeline, evidence visibility, review-window policy and buyer cancellation decision. Logistic Hub owns execution of accepted operational instructions.
 
 Approved LI-02G-B policy baseline and implementation sequence:
