@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
 import { findSellerFulfillmentForPackingEvidence, findBuyerShipmentForPackingEvidence } from "./packing-evidence.db.js";
 import { PACKING_EVIDENCE_SLOTS } from "./packing-evidence.validation.js";
+import { startPackingReview, findBuyerPackingReview, approveBuyerPackingReview } from "./shipment-review.db.js";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const SIGNATURES = {
@@ -65,7 +66,8 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
   }
   const key = requireIdempotencyKey(idempotencyKey);
   try {
-    return await clientFor(shipment.provider).uploadPackingEvidence(
+    const client = clientFor(shipment.provider);
+    const uploaded = await client.uploadPackingEvidence(
       shipment.externalReference,
       {
         buffer: file.buffer,
@@ -76,6 +78,17 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
       },
       key,
     );
+    const currentEvidence = await client.listPackingEvidence(shipment.externalReference);
+    const acceptedSlots = new Set(currentEvidence.evidence.map(item => item.slot));
+    const evidenceComplete = PACKING_EVIDENCE_SLOTS.every(requiredSlot => acceptedSlots.has(requiredSlot));
+    const review = evidenceComplete
+      ? await startPackingReview({
+        sellerOrderId: fulfillment.sellerOrder.id,
+        shipmentId: shipment.id,
+        buyerId: fulfillment.sellerOrder.order.buyerId,
+      })
+      : null;
+    return { ...uploaded, evidenceComplete, review };
   } catch (error) {
     mapHubError(error);
   }
@@ -102,6 +115,20 @@ export const listBuyerPackingEvidenceService = async (buyerId, sellerOrderId) =>
   } catch (error) {
     mapHubError(error);
   }
+};
+
+export const getBuyerPackingReviewService = async (buyerId, sellerOrderId) => {
+  const review = await findBuyerPackingReview(sellerOrderId, buyerId);
+  if (!review) throw new NotFoundError("Packing review not found.");
+  return review;
+};
+
+export const approveBuyerPackingReviewService = async (buyerId, sellerOrderId) => {
+  const result = await approveBuyerPackingReview({ buyerId, sellerOrderId, now: new Date() });
+  if (result.notFound) throw new NotFoundError("Packing review not found.");
+  if (result.expired) throw new ConflictError("The review window has expired; dispatch authorization is being processed.");
+  if (result.blocker) throw new ConflictError("This packing review can no longer be approved.");
+  return result.review;
 };
 
 export const downloadBuyerPackingEvidenceService = async (buyerId, sellerOrderId, evidenceId) => {
