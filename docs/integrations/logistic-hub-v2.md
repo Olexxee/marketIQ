@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A, LI-02G-C2 and MarketIQ LI-02G-C3/C4 are merged. C3 adds buyer cancellation/return requests and durable Hub commands; C4 reconciles signed Hub cancellation and return-request outcomes. LI-02G-C5 financial review is the next development phase. Shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A, LI-02G-C2 and MarketIQ LI-02G-C3/C4 are merged. C3 adds buyer cancellation/return requests and durable Hub commands; C4 reconciles signed Hub cancellation and return-request outcomes. LI-02G-C5 is in progress: C5-A read-only admin resolution review is under implementation review in MarketIQ PR #25; C5-B/C5-C financial decision and refund execution require explicit policy approval. Shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -254,7 +254,7 @@ C4 does not issue refunds, cancel MarketIQ seller orders, alter seller settlemen
 
 ## LI-02G-C5 — Admin refund review and financial resolution
 
-**Status:** Next phase; contract and repository audit started on `docs/li-02g-c5-financial-review-plan`. No C5 runtime behavior or financial policy has been implemented or approved yet.
+**Status:** C5-A read-only admin review is implemented on MarketIQ PR #25 (not yet merged; current-head CI pending). C5-B/C5-C financial decision and refund execution are not implemented; allocation policy is not approved.
 
 ### Existing capabilities and gaps identified during the C5 audit
 
@@ -268,7 +268,7 @@ A Hub stop confirmation, return-request acknowledgement, or even a later physica
 
 ### C5 implementation sequence
 
-1. **C5-A — Admin logistics-resolution review surface (read-only):** ADMIN-only queue and detail view for buyer resolution cases. Present MarketIQ order/SellerOrder, buyer request and reason, Hub shipment status and signed event timeline, packing review/evidence references, successful payments, refund exposure/status, seller settlement state, and related ledger transactions. Expose missing/contradictory evidence as explicit review flags. No mutation, refund request, Paystack call or settlement adjustment.
+1. **C5-A — Admin logistics-resolution review surface (read-only):** Implemented on PR #25, pending CI/review. ADMIN-only queue and detail endpoints: `GET /api/admin/operations/logistics-resolutions` and `GET /api/admin/operations/logistics-resolutions/:id`. The projection includes MarketIQ order/SellerOrder, buyer request, Hub shipment status and signed event timeline, packing-review timestamps, payments, refunds, seller settlement and ledger entries. It exposes explicit review flags. It performs no mutation, refund request, Paystack call or settlement adjustment.
 2. **C5-B — Audited financial decision record:** Add a durable, idempotent admin decision linked to the resolution request and affected SellerOrder. Record decision basis, outcome, approved amount/currency, allocation breakdown, rationale, evidence references, actor and timestamps. Use optimistic/concurrent state protection and immutable audit history. This stage must not call Paystack.
 3. **C5-C — Refund execution and ledger allocation:** Only after allocation policy is explicitly approved, connect an approved decision to the existing Paystack refund lifecycle. Reserve exposure atomically, prevent duplicate/over-refunds, record provider uncertainty safely, and post balanced, idempotent ledger entries against explicit allocation accounts. Existing seller settlement paid/processing states must block or require an explicit documented recovery plan. Do not rewrite general refund behavior without regression tests.
 4. **C5-D — Reconciliation and acceptance:** Reconcile Paystack refund webhooks/provider references against local refund and ledger state; test partial/full refunds, multiple payments, concurrent admin actions, retries/timeouts, seller settlement conflicts, Hub stop vs return-request vs physical-return facts, and audit completeness.
