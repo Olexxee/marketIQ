@@ -3,6 +3,23 @@ import prisma from "../../config/prisma.js";
 const REVIEW_WINDOW_MS = 4 * 60 * 60 * 1000;
 const EVIDENCE_DEADLINE_MS = 24 * 60 * 60 * 1000;
 
+const notifyOperationsOfOverdueEvidence = async (tx, { reviewId, sellerOrderId, shipmentId }) => {
+  const admins = await tx.user.findMany({
+    where: { role: "ADMIN", status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!admins.length) return;
+  await tx.notification.createMany({
+    data: admins.map(admin => ({
+      userId: admin.id,
+      type: "PACKING_EVIDENCE_OVERDUE",
+      title: "Packing evidence deadline missed",
+      message: "A paid shipment has not received all four required packing photos within 24 hours. Dispatch remains blocked and operations review is required.",
+      data: { shipmentReviewId: reviewId, sellerOrderId, shipmentId },
+    })),
+  });
+};
+
 export const ensureShipmentReviewForBookedShipment = async sellerOrderId => {
   const shipment = await prisma.logisticsShipment.findUnique({
     where: { sellerOrderId },
@@ -41,16 +58,7 @@ export const startPackingReview = async ({ sellerOrderId, shipmentId, buyerId, n
         data: { status: "EVIDENCE_OVERDUE" },
       });
       if (changed.count === 1) {
-        await tx.outboxEvent.createMany({
-          data: [{
-            eventType: "LOGISTICS_PACKING_EVIDENCE_OVERDUE",
-            aggregateType: "SHIPMENT_REVIEW",
-            aggregateId: review.id,
-            dedupeKey: `li02gb-evidence-overdue:${review.id}`,
-            payload: { shipmentReviewId: review.id, sellerOrderId, shipmentId },
-          }],
-          skipDuplicates: true,
-        });
+        await notifyOperationsOfOverdueEvidence(tx, { reviewId: review.id, sellerOrderId, shipmentId });
       }
       return tx.shipmentReview.findUnique({ where: { id: review.id } });
     }
