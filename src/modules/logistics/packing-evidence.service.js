@@ -50,6 +50,7 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
   if (!fulfillment) throw new NotFoundError("Fulfillment not found.");
   const shipment = fulfillment.sellerOrder.logisticsShipment;
   if (
+    !["PENDING", "PROCESSING"].includes(fulfillment.status) ||
     fulfillment.sellerOrder.status === "CANCELLED" ||
     fulfillment.sellerOrder.order.paymentStatus !== "SUCCESS" ||
     !shipment || shipment.status !== "BOOKED" ||
