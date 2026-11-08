@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildLogisticsResolutionReviewFlags } from "./logistics-resolution-review.service.js";
+import { buildLogisticsResolutionReviewFlags } from "./logistics-resolution-review.flags.js";
 
 const makeRecord = (overrides = {}) => ({
   status: "RETURN_REQUESTED",
@@ -55,6 +55,6 @@ test("flags missing payment and Hub event evidence", () => {
 test("does not infer physical return from a confirmed stop", () => {
   const record = makeRecord({ status: "STOP_CONFIRMED", physicalReturnConfirmed: false });
   assert.deepEqual(buildLogisticsResolutionReviewFlags(record), [
-    "STOP_CONFIRMED_NO_RETURN_RECEIPT",
+    "STOP_CONFIRMED_IS_NOT_RETURN_CONFIRMATION",
   ]);
 });
