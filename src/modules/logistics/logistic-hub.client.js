@@ -141,6 +141,12 @@ export function createLogisticHubClient({
         { method: "POST", body: {}, idempotencyKey },
       );
     },
+    freezePackingEvidence(externalFulfillmentReference, idempotencyKey) {
+      return request(
+        `/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/packing-evidence/freeze`,
+        { method: "POST", body: {}, idempotencyKey },
+      );
+    },
     authorizeShipmentDispatch(externalFulfillmentReference, reason, idempotencyKey) {
       return request(
         `/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/dispatch-authorization`,
