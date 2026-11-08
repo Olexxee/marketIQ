@@ -15,7 +15,7 @@ const retryDate = attempts => {
 
 const setReviewOutcome = async (tx, request, status) => {
   await tx.shipmentReview.updateMany({
-    where: { sellerOrderId: request.sellerOrderId },
+    where: { sellerOrderId: request.sellerOrderId, status: "CANCELLATION_REQUESTED" },
     data: {
       status,
       ...(status === "CANCELLATION_CONFIRMED" ? { closedAt: new Date() } : {}),
