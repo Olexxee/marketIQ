@@ -36,10 +36,22 @@ export const startPackingReview = async ({ sellerOrderId, shipmentId, buyerId, n
     }
     if (review.status !== "WAITING_FOR_EVIDENCE") return review;
     if (review.evidenceDeadlineAt <= now) {
-      await tx.shipmentReview.updateMany({
+      const changed = await tx.shipmentReview.updateMany({
         where: { id: review.id, status: "WAITING_FOR_EVIDENCE" },
         data: { status: "EVIDENCE_OVERDUE" },
       });
+      if (changed.count === 1) {
+        await tx.outboxEvent.createMany({
+          data: [{
+            eventType: "LOGISTICS_PACKING_EVIDENCE_OVERDUE",
+            aggregateType: "SHIPMENT_REVIEW",
+            aggregateId: review.id,
+            dedupeKey: `li02gb-evidence-overdue:${review.id}`,
+            payload: { shipmentReviewId: review.id, sellerOrderId, shipmentId },
+          }],
+          skipDuplicates: true,
+        });
+      }
       return tx.shipmentReview.findUnique({ where: { id: review.id } });
     }
     const reviewExpiresAt = new Date(now.getTime() + REVIEW_WINDOW_MS);
