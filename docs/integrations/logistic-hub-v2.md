@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D, LI-02E and LI-02F are merged. LI-02G-A packing evidence is implemented on the current cross-repository PR branches and is awaiting CI/review/merge. LI-02G-B buyer review and cancellation coordination remain unimplemented pending explicit policy decisions. The LI-02E worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** Contract v2. LI-02D, LI-02E, LI-02F and LI-02G-A packing evidence are merged. LI-02G-B buyer review and cancellation coordination remain unimplemented pending explicit policy decisions. The LI-02E worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -114,6 +114,8 @@ Packing evidence upload is not proof of pickup, custody or delivery. LI-02G-A do
 
 ## 5. Buyer review and cancellation coordination
 
+**Frontend implementation specification:** [MarketIQ Storefront — Orders, Fulfilment and Packing Evidence](https://github.com/Olexxee/marketIQ-storefront/blob/main/docs/logistics-packing-evidence-workflow.md). This describes proposed frontend routes and the exact backend endpoints. The storefront currently has no order-management screens; the UI work remains separate from the merged backend implementation.
+
 MarketIQ owns the buyer-facing order timeline, evidence visibility, review-window policy and buyer cancellation decision. Logistic Hub owns execution of accepted operational instructions.
 
 Target flow:
@@ -121,7 +123,7 @@ Target flow:
 1. Seller prepares the seller order and submits packing photographs into the four defined evidence slots.
 2. MarketIQ authenticates seller ownership and forwards each image to Logistic Hub using the private binary evidence endpoint.
 3. Logistic Hub validates and stores the image, preserves version history and records an internal evidence-received event.
-4. The buyer views the latest evidence versions through MarketIQ's buyer-authenticated proxy endpoints. LI-02G-A does not yet define a review timer or dispatch gate.
+4. The buyer views the latest evidence versions through MarketIQ's buyer-authenticated proxy endpoints. LI-02G-A does not define a review timer or dispatch gate.
 5. LI-02G-B will define buyer issue/cancellation requests, seller response rules, Hub hold/stop/return coordination and dispatch authorization.
 
 The review-window duration, timeout behavior, refund eligibility, seller response rules and the exact point at which dispatch becomes irreversible remain policy decisions to be finalized before implementation. Do not invent an automatic-approval timeout in code before those rules are approved.
