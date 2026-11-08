@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A and LI-02G-C2 are merged across the two backends. LI-02G-C3 is in review on MarketIQ PR #22: buyer cancellation requests, durable Hub stop/return commands and a separate resolution state machine are implemented on the feature branch but not yet merged. The shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A, LI-02G-C2 and MarketIQ LI-02G-C3/C4 are merged. C3 adds buyer cancellation/return requests and durable Hub commands; C4 reconciles signed Hub cancellation and return-request outcomes. LI-02G-C5 financial review is the next development phase. Shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -237,7 +237,7 @@ LI-02E retry policy uses the existing outbox attempt counter: 5 seconds, 15 seco
 
 ## LI-02G-C4 — Signed cancellation and return outcome reconciliation
 
-**Status:** Implemented on the LI-02G-C4 feature branch; not yet merged.
+**Status:** Merged in MarketIQ PR #23 (`4c4a3141f5eaa3d1bc381a0c0d5e4d7ec6ae3b9e`).
 
 The existing LI-02F webhook receiver remains the only inbound event path. After HMAC verification, client/provider event deduplication, shipment-row locking and sequence validation, the same database transaction now reconciles resolution outcomes:
 
@@ -250,6 +250,42 @@ The existing LI-02F webhook receiver remains the only inbound event path. After 
 The event type, not an inferred status transition, distinguishes a return-request acknowledgement from a physical return. Hub currently emits `shipment.return_requested` when the integration return-request command is recorded; this is not a reverse-leg, pickup, return-custody or seller-receipt event. The C4 implementation deliberately leaves `physicalReturnConfirmed=false` for every event in this slice.
 
 C4 does not issue refunds, cancel MarketIQ seller orders, alter seller settlement, or mark physical returns complete. The next phases remain admin financial review and a separately specified operational reverse-logistics workflow.
+
+
+## LI-02G-C5 — Admin refund review and financial resolution
+
+**Status:** Next phase; contract and repository audit started on `docs/li-02g-c5-financial-review-plan`. No C5 runtime behavior or financial policy has been implemented or approved yet.
+
+### Existing capabilities and gaps identified during the C5 audit
+
+MarketIQ already has ADMIN-only refund list/request/process/retry endpoints, dispute review, seller-settlement controls, a refund status lifecycle, Paystack refund calls outside database transactions, refund idempotency, audit logs and a double-entry-style ledger. These are general order-level capabilities; they are not yet a complete logistics-resolution financial workflow.
+
+The current refund model links a refund to an order and payment, but not directly to a SellerOrder, ShipmentResolutionRequest or LogisticsShipment. The current refund ledger records ordinary refunds against `REFUND_UNALLOCATED` unless the refund reason matches the special duplicate/late-payment liability case. That is not sufficient to infer which merchandise, delivery charge, Hub cost, seller payable, tax or platform subsidy should bear a logistics-related refund.
+
+The existing refund amount is stored as a Decimal major-unit amount and the service uses JavaScript Number arithmetic for Paystack kobo conversion and refund exposure. The integration contract's accepted quote and shipment amounts are integer minor-unit strings/BigInts. C5 must reconcile this representation boundary explicitly; do not introduce additional float-based allocation logic.
+
+A Hub stop confirmation, return-request acknowledgement, or even a later physical-return milestone is evidence for review, not an automatic refund entitlement. A `RETURN_REQUESTED` state is not physical return confirmation. No refund should be initiated solely because one of those states exists.
+
+### C5 implementation sequence
+
+1. **C5-A — Admin logistics-resolution review surface (read-only):** ADMIN-only queue and detail view for buyer resolution cases. Present MarketIQ order/SellerOrder, buyer request and reason, Hub shipment status and signed event timeline, packing review/evidence references, successful payments, refund exposure/status, seller settlement state, and related ledger transactions. Expose missing/contradictory evidence as explicit review flags. No mutation, refund request, Paystack call or settlement adjustment.
+2. **C5-B — Audited financial decision record:** Add a durable, idempotent admin decision linked to the resolution request and affected SellerOrder. Record decision basis, outcome, approved amount/currency, allocation breakdown, rationale, evidence references, actor and timestamps. Use optimistic/concurrent state protection and immutable audit history. This stage must not call Paystack.
+3. **C5-C — Refund execution and ledger allocation:** Only after allocation policy is explicitly approved, connect an approved decision to the existing Paystack refund lifecycle. Reserve exposure atomically, prevent duplicate/over-refunds, record provider uncertainty safely, and post balanced, idempotent ledger entries against explicit allocation accounts. Existing seller settlement paid/processing states must block or require an explicit documented recovery plan. Do not rewrite general refund behavior without regression tests.
+4. **C5-D — Reconciliation and acceptance:** Reconcile Paystack refund webhooks/provider references against local refund and ledger state; test partial/full refunds, multiple payments, concurrent admin actions, retries/timeouts, seller settlement conflicts, Hub stop vs return-request vs physical-return facts, and audit completeness.
+
+### Financial policy decisions that must not be guessed
+
+Before C5-B/C5-C can approve or execute a refund, the business must define:
+- Which evidence states permit a refund decision: Hub stop confirmed, return requested, physical return confirmed, seller receipt confirmed, or a separately adjudicated buyer/seller dispute.
+- Whether delivery charge is refundable when a shipment is stopped before pickup, after pickup, after Hub handover, or after failed delivery; distinguish customer delivery charge from actual Hub logistics cost.
+- Whether merchandise value, taxes, platform fees and delivery components are refundable in full or pro rata for partial remedies.
+- How a paid seller settlement is recovered, including whether recovery is contractual, offset against future settlements, or written off; no negative seller balance or automatic clawback may be assumed.
+- How the platform-funded Hub payable is handled when Hub has already incurred a cost, including any cancellation/return fees and dispute process.
+- Who may approve a refund, whether maker-checker separation is required, and any amount thresholds.
+- Whether refunds are always returned to the original Paystack payment method, and the handling of provider-required alternative bank details / NEEDS_ATTENTION cases.
+
+Until these rules are approved, C5-A may expose the complete evidence and existing financial records, but C5 must not automate refund eligibility, split refund amounts, reverse seller payable, or alter Hub payable. Keep physical reverse-logistics execution as a separate operational workstream.
+
 
 ## LI-02F — Signed Hub webhooks and buyer tracking projection
 
