@@ -84,7 +84,6 @@ export const findBuyerShipmentResolutionRequest = (buyerId, sellerOrderId) =>
       requestedAt: true,
       commandAcceptedAt: true,
       resolvedAt: true,
-      hubResponse: true,
       createdAt: true,
       updatedAt: true,
     },
