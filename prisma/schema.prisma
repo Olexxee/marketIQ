@@ -1364,7 +1364,6 @@ model SellerOrder {
   logisticsShipment LogisticsShipment?
   shipmentReview ShipmentReview?
   shipmentResolutionRequest ShipmentResolutionRequest?
-  shipmentResolutionRequest ShipmentResolutionRequest?
 
   @@unique([orderId, sellerId])
   @@index([sellerId])
