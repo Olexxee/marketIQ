@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D, LI-02E and LI-02F are merged. LI-02F adds signed Logistic Hub webhook ingestion and buyer-scoped shipment tracking projection. LI-02G packing evidence/buyer review and cancellation coordination remain unimplemented. The LI-02E worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** Contract v2. LI-02D, LI-02E and LI-02F are merged. LI-02G-A packing evidence is implemented on the current cross-repository PR branches and is awaiting CI/review/merge. LI-02G-B buyer review and cancellation coordination remain unimplemented pending explicit policy decisions. The LI-02E worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -98,11 +98,19 @@ A maximum of **four packing photographs per seller fulfilment/shipment** is allo
 
 These are packing-evidence images, not proof of delivery. Each image record includes external shipment/fulfilment reference, evidence type/slot, capture timestamp, submitting actor reference, media checksum, content type, byte size, upload/verification state and version. Preserve original evidence and audit changes. Replacements create a new version; they must not silently overwrite the original.
 
-### Media transfer and access
+### Media transfer and access — LI-02G-A
 
-The exact media transport endpoint is a future implementation detail; no new endpoint is implied by this document. Do not embed image binaries as base64 in shipment JSON and do not use permanent public URLs.
+The implementation uses a server-to-server binary upload; image bytes are not embedded in shipment JSON and no permanent public URL is shared.
 
-Use private object storage and a controlled server-to-server transfer or short-lived signed retrieval capability. Authenticate and authorize each transfer, constrain expiry and object scope, validate downloaded bytes, and avoid logging signed URLs. Logistic Hub retains a durable operational copy or durable controlled reference for the applicable evidence-retention period. MarketIQ remains responsible for buyer-facing authorization: the buyer views packing evidence through MarketIQ, not by receiving unrestricted Hub storage URLs.
+- Seller upload: `POST /api/seller/fulfillments/:fulfillmentId/packing-evidence` on MarketIQ, authenticated as the owning active seller. The multipart request contains one `image` file and a `slot` field; the request must include an `Idempotency-Key`.
+- MarketIQ verifies seller ownership, paid order state, pre-dispatch fulfilment state and an already-booked Logistic Hub shipment before forwarding the bytes.
+- Hub upload: `POST /api/v1/integrations/shipments/by-external-reference/:externalFulfillmentReference/packing-evidence`, authenticated with the integration credential and `shipments:write`. The request uses `application/octet-stream` with explicit evidence slot, actor reference, filename and content-type headers.
+- Hub accepts JPEG, PNG and WebP only, verifies file signatures, enforces a 5 MiB limit, computes SHA-256 and stores the image as an authenticated/private Cloudinary asset. The database retains the object path and immutable evidence metadata; no public asset URL is returned.
+- The four active slots are `CONTENTS_OVERVIEW`, `PRODUCT_DETAILS`, `QUANTITY_CHECK` and `SEALED_PARCEL`. Replacing a slot creates a new monotonically increasing version; prior versions remain stored. Buyer listing exposes the latest version of each slot, not the entire replacement history.
+- Buyer reads are authorized by MarketIQ against the buyer's own SellerOrder and proxied through `GET /api/checkout/logistics/shipments/:sellerOrderId/packing-evidence` and `GET /api/checkout/logistics/shipments/:sellerOrderId/packing-evidence/:evidenceId/download`. Hub independently verifies that the evidence ID belongs to the external fulfilment reference in the download path.
+- The Hub evidence record is canonical. It includes server upload time, MarketIQ seller actor reference, slot/version, byte size, MIME type and checksum. Hub also records an internal BookingEvent for the evidence receipt. The integration does not expose Hub storage credentials or signed Cloudinary URLs to the browser.
+
+Packing evidence upload is not proof of pickup, custody or delivery. LI-02G-A does not authorize automatic dispatch, buyer auto-approval, cancellation or refund. Those behaviors remain in LI-02G-B.
 
 ## 5. Buyer review and cancellation coordination
 
@@ -110,13 +118,11 @@ MarketIQ owns the buyer-facing order timeline, evidence visibility, review-windo
 
 Target flow:
 
-1. Seller prepares the seller order and submits up to four packing photographs.
-2. MarketIQ associates evidence with the relevant seller fulfilment and sends it to Logistic Hub through the agreed media/evidence mechanism.
-3. Logistic Hub records the evidence and emits a signed event referencing the external fulfilment and evidence-set/version.
-4. MarketIQ displays the photographs to the buyer in the order timeline.
-5. The buyer may raise an issue or request cancellation under MarketIQ's published policy.
-6. MarketIQ sends a cancellation/hold instruction to Logistic Hub. Logistic Hub applies the permitted operational action and reports the actual outcome.
-7. Final dispatch from a hub or the next delivery stage proceeds only according to the agreed MarketIQ authorization and Logistic Hub's operational state.
+1. Seller prepares the seller order and submits packing photographs into the four defined evidence slots.
+2. MarketIQ authenticates seller ownership and forwards each image to Logistic Hub using the private binary evidence endpoint.
+3. Logistic Hub validates and stores the image, preserves version history and records an internal evidence-received event.
+4. The buyer views the latest evidence versions through MarketIQ's buyer-authenticated proxy endpoints. LI-02G-A does not yet define a review timer or dispatch gate.
+5. LI-02G-B will define buyer issue/cancellation requests, seller response rules, Hub hold/stop/return coordination and dispatch authorization.
 
 The review-window duration, timeout behavior, refund eligibility, seller response rules and the exact point at which dispatch becomes irreversible remain policy decisions to be finalized before implementation. Do not invent an automatic-approval timeout in code before those rules are approved.
 
