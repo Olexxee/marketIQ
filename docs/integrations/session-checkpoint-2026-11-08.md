@@ -22,7 +22,7 @@ This checkpoint records merged implementation separately from deployment, stagin
 | LI-02G-C2 | Hub stop and return-request commands | Merged |
 | LI-02G-C3 | Buyer cancellation/return request API and durable command worker | Merged |
 | LI-02G-C4 | Signed Hub cancellation/return outcome reconciliation | Merged |
-| LI-02G-C5 | Admin refund review and financial resolution | Next phase; policy/design audit started |
+| LI-02G-C5 | Admin refund review and financial resolution | In progress — C5-A implementation open in PR #25; C5-B/C5-C policy pending |
 
 ### Latest merge — LI-02G-C4
 
@@ -97,4 +97,4 @@ Merged code and green CI do not prove production deployment or configured-Hub st
 C2/C3/C4 do not implement reverse transport. A future operational slice must define who creates/accepts the reverse job, who pays, partner/rider assignment, reverse route, pickup, custody milestones, failed pickup, hub receipt and seller receipt confirmation. Only actual Hub custody evidence may set `physicalReturnConfirmed=true`.
 
 ---
-**Stop point:** LI-02G-C4 is merged and CI-green. C5 contract/repository audit is documented on the current documentation branch. C5 runtime behavior has not started; financial allocation policy remains unapproved.
+**Stop point:** LI-02G-C4 is merged and CI-green. C5-A read-only admin review is implemented on PR #25 and its current-head CI is pending. C5-B/C5-C financial decision and refund execution remain blocked on explicit allocation-policy approval.
