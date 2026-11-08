@@ -132,6 +132,60 @@ export function createLogisticHubWebhookRepository({ prismaClient } = {}) {
           });
         }
 
+        // Resolution state is reconciled only from a newer, signed Hub event.
+        // A command HTTP response is not a substitute for this source event.
+        if (advancesProjection && envelope.type === "shipment.cancelled") {
+          await tx.logisticsShipment.updateMany({
+            where: { id: shipment.id, status: "BOOKED" },
+            data: { status: "CANCELLED" },
+          });
+        }
+
+        if (advancesProjection && ["shipment.cancelled", "shipment.return_requested"].includes(envelope.type)) {
+          const resolution = await tx.shipmentResolutionRequest.findUnique({
+            where: { shipmentId: shipment.id },
+            select: { id: true, sellerOrderId: true, status: true },
+          });
+
+          if (resolution) {
+            if (envelope.type === "shipment.cancelled") {
+              await tx.shipmentResolutionRequest.updateMany({
+                where: {
+                  id: resolution.id,
+                  status: { in: ["COMMAND_PENDING", "COMMAND_PROCESSING", "STOP_CONFIRMED"] },
+                },
+                data: {
+                  status: "STOP_CONFIRMED",
+                  physicalReturnConfirmed: false,
+                  commandAcceptedAt: new Date(envelope.occurredAt),
+                  resolvedAt: new Date(envelope.occurredAt),
+                },
+              });
+              await tx.shipmentReview.updateMany({
+                where: { sellerOrderId: resolution.sellerOrderId, status: "CANCELLATION_REQUESTED" },
+                data: { status: "CANCELLATION_CONFIRMED", closedAt: new Date(envelope.occurredAt) },
+              });
+            } else {
+              await tx.shipmentResolutionRequest.updateMany({
+                where: {
+                  id: resolution.id,
+                  status: { in: ["COMMAND_PENDING", "COMMAND_PROCESSING", "RETURN_REQUESTED"] },
+                },
+                data: {
+                  status: "RETURN_REQUESTED",
+                  physicalReturnConfirmed: false,
+                  commandAcceptedAt: new Date(envelope.occurredAt),
+                  resolvedAt: null,
+                },
+              });
+              await tx.shipmentReview.updateMany({
+                where: { sellerOrderId: resolution.sellerOrderId, status: "CANCELLATION_REQUESTED" },
+                data: { status: "RETURN_REQUESTED", returnRequestedAt: new Date(envelope.occurredAt) },
+              });
+            }
+          }
+        }
+
         await tx.logisticsWebhookReceipt.update({
           where: { id: receipt.id },
           data: { status: "PROCESSED", processedAt: new Date(), lastError: null },

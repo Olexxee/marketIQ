@@ -235,6 +235,22 @@ LI-02D events preserve the accepted quote request/option snapshot and the billin
 
 LI-02E retry policy uses the existing outbox attempt counter: 5 seconds, 15 seconds, 1 minute, 5 minutes, 15 minutes, then 1 hour between retries, with a maximum of 12 attempts before the event is marked `FAILED`. A retry always looks up the external fulfilment reference first; if the Hub committed a shipment but MarketIQ lost the response, the existing booking is recovered rather than duplicated. A 404 lookup alone permits create; other lookup failures prevent create and are retried or dead-lettered according to provider retryability. Operators can requeue a dead-lettered event only after correcting the cause and confirming that no duplicate shipment exists.
 
+## LI-02G-C4 — Signed cancellation and return outcome reconciliation
+
+**Status:** Implemented on the LI-02G-C4 feature branch; not yet merged.
+
+The existing LI-02F webhook receiver remains the only inbound event path. After HMAC verification, client/provider event deduplication, shipment-row locking and sequence validation, the same database transaction now reconciles resolution outcomes:
+
+- A newer `shipment.cancelled` event moves an eligible MarketIQ `ShipmentResolutionRequest` to `STOP_CONFIRMED`, keeps `physicalReturnConfirmed=false`, closes the related packing review as `CANCELLATION_CONFIRMED`, and marks the local logistics shipment `CANCELLED`.
+- A newer `shipment.return_requested` event moves an eligible request to `RETURN_REQUESTED`, keeps `physicalReturnConfirmed=false`, and updates the packing review to `RETURN_REQUESTED`. It does not cancel the local booking or claim that the parcel has physically moved back.
+- The outcome projection is applied only when the signed event advances the shipment's accepted sequence. Stale events remain in the event ledger but cannot regress shipment or resolution state.
+- Events for shipments without a buyer resolution request remain ordinary shipment-tracking events; they do not manufacture a buyer request.
+- Duplicate event IDs return the existing receipt result. A conflicting event ID at an occupied shipment sequence is recorded as a failed receipt and is not projected.
+
+The event type, not an inferred status transition, distinguishes a return-request acknowledgement from a physical return. Hub currently emits `shipment.return_requested` when the integration return-request command is recorded; this is not a reverse-leg, pickup, return-custody or seller-receipt event. The C4 implementation deliberately leaves `physicalReturnConfirmed=false` for every event in this slice.
+
+C4 does not issue refunds, cancel MarketIQ seller orders, alter seller settlement, or mark physical returns complete. The next phases remain admin financial review and a separately specified operational reverse-logistics workflow.
+
 ## LI-02F — Signed Hub webhooks and buyer tracking projection
 
 MarketIQ receives Logistic Hub deliveries at:
@@ -251,7 +267,7 @@ The Hub signs `<unix-seconds>.<exact-raw-body>` using HMAC-SHA256. MarketIQ veri
 - `X-Logistic-Hub-Timestamp`
 - `X-Logistic-Hub-Signature: t=<unix-seconds>,v1=<hex-digest>`
 
-The v1 JSON envelope is `{ id, type, schemaVersion, occurredAt, sequence, data }`; `data` contains only `shipmentReference` and resulting `status`. The accepted event vocabulary is `shipment.created`, `shipment.partner_assigned`, `shipment.in_transit`, `shipment.custody_handover_confirmed` and `shipment.delivery_leg_completed` (the latter may represent multiple Hub custody milestones).
+The v1 JSON envelope is `{ id, type, schemaVersion, occurredAt, sequence, data }`; `data` contains only `shipmentReference` and resulting `status`. The accepted event vocabulary is `shipment.created`, `shipment.partner_assigned`, `shipment.in_transit`, `shipment.custody_handover_confirmed`, `shipment.delivery_leg_completed`, `shipment.cancelled` and `shipment.return_requested`.
 
 After signature verification, MarketIQ stores a verified receipt with the SHA-256 body fingerprint (not the raw body), deduplicates by provider + event ID, and appends a sanitized `LogisticsEvent`. A shipment-row lock serializes sequence checks. Older events remain in the audit timeline but cannot regress the latest `providerStatus`; a conflicting event ID at an already-used shipment sequence is retained as a failed receipt for reconciliation. If the webhook arrives before LI-02E has persisted the local Hub tracking reference, MarketIQ returns a retryable 503 so Hub delivery retries rather than acknowledging a lost event.
 
@@ -259,6 +275,6 @@ Buyer tracking is exposed at:
 
 `GET /api/checkout/logistics/shipments/:sellerOrderId/tracking`
 
-The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation commands are implemented in the subsequent LI-02G phases; physical return execution and refund review remain separate follow-up work.
+The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation commands are implemented in LI-02G-A through C3. LI-02G-C4 reconciles signed `shipment.cancelled` and `shipment.return_requested` events into the buyer resolution request and shipment projection. Physical return execution and refund review remain separate follow-up work.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.
