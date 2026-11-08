@@ -19,6 +19,8 @@ import {
   resolveDisputeSchema,
   paymentReconciliationListQuerySchema,
   paymentReconciliationResolveSchema,
+  logisticsResolutionReviewIdParamSchema,
+  logisticsResolutionReviewListQuerySchema,
 } from "./admin-operations.validation.js";
 import {
   getDispute,
@@ -35,6 +37,8 @@ import {
   reviewDispute,
   listPaymentReconciliation,
   resolvePaymentReconciliation,
+  listLogisticsResolutionReviews,
+  getLogisticsResolutionReview,
 } from "./admin-operations.controller.js";
 
 const router = Router();
@@ -44,6 +48,9 @@ router.get("/disputes", authorize("ADMIN", "STAFF"), validateQuery(disputeListQu
 router.get("/disputes/:id", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), getDispute);
 router.post("/disputes/:id/review", authorize("ADMIN", "STAFF"), validateParams(disputeIdParamSchema), reviewDispute);
 router.post("/disputes/:id/resolve", authorize("ADMIN"), validateParams(disputeIdParamSchema), validateBody(resolveDisputeSchema), resolveDispute);
+
+router.get("/logistics-resolutions", authorize("ADMIN"), validateQuery(logisticsResolutionReviewListQuerySchema), listLogisticsResolutionReviews);
+router.get("/logistics-resolutions/:id", authorize("ADMIN"), validateParams(logisticsResolutionReviewIdParamSchema), getLogisticsResolutionReview);
 
 router.get("/payment-reconciliation", authorize("ADMIN"), validateQuery(paymentReconciliationListQuerySchema), listPaymentReconciliation);
 router.post("/payment-reconciliation/:id/resolve", authorize("ADMIN"), validateParams(refundIdParamSchema), validateBody(paymentReconciliationResolveSchema), resolvePaymentReconciliation);

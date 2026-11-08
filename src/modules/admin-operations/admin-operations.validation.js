@@ -76,3 +76,17 @@ export const paymentReconciliationResolveSchema = z.object({
   resolution: z.enum(["CONFIRMED_PAYMENT", "CONFIRMED_NO_CHARGE", "REFUND_INITIATED", "OTHER"]),
   notes: z.string().trim().min(5).max(1000),
 });
+
+export const logisticsResolutionReviewIdParamSchema = z.object({ id: cuid });
+export const logisticsResolutionReviewListQuerySchema = z.object({
+  status: z.enum([
+    "COMMAND_PENDING",
+    "COMMAND_PROCESSING",
+    "STOP_CONFIRMED",
+    "RETURN_REQUESTED",
+    "REJECTED",
+    "FAILED",
+  ]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});

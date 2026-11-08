@@ -1,5 +1,6 @@
 import { asyncWrapper } from "../../lib/asyncWrapper.js";
 import { successResponse } from "../../lib/response.js";
+import { listLogisticsResolutionReviewsService, getLogisticsResolutionReviewService } from "./logistics-resolution-review.service.js";
 import {
   getDisputeService,
   listSettlementsService,
@@ -103,5 +104,26 @@ export const resolvePaymentReconciliation = asyncWrapper(async (req, res) => {
     statusCode: 200,
     message: "Payment reconciliation item resolved",
     data: payment,
+  });
+});
+
+export const listLogisticsResolutionReviews = asyncWrapper(async (req, res) => {
+  const result = await listLogisticsResolutionReviewsService(req.query);
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Logistics resolution reviews retrieved",
+    data: result.items,
+    meta: { page: result.page, limit: result.limit, total: result.total, totalPages: Math.ceil(result.total / result.limit) },
+  });
+});
+
+export const getLogisticsResolutionReview = asyncWrapper(async (req, res) => {
+  const result = await getLogisticsResolutionReviewService(req.params.id);
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Logistics resolution review retrieved",
+    data: result,
   });
 });
