@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: MarketIQ Logistics Resolution API
+  version: 1.0.0
+
+tags:
+  - name: Logistics Resolution
+    description: Buyer cancellation and custody-aware return requests
+
+paths:
+  /api/checkout/logistics/shipments/{sellerOrderId}/cancellation-request:
+    parameters:
+      - in: path
+        name: sellerOrderId
+        required: true
+        schema: { type: string, minLength: 1, maxLength: 128 }
+    post:
+      tags: [Logistics Resolution]
+      summary: Request cancellation or return of a booked shipment
+      description: |
+        The authenticated buyer must own the paid seller order. MarketIQ records one durable request per shipment and queues a Hub command. Hub confirms a stop only before custody transfer. If Hub explicitly reports custody, MarketIQ submits a return request. A return-request acknowledgement is not physical return confirmation and does not issue a refund.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 1000 }
+      responses:
+        "202":
+          description: New request durably queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "200":
+          description: Existing request returned on replay
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
+    get:
+      tags: [Logistics Resolution]
+      summary: Retrieve the buyer's cancellation or return request state
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current request state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalServerError" }
