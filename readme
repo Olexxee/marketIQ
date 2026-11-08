@@ -56,7 +56,7 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01 and LI-02A–LI-02F are merged.** LI-02C Phase A acceptance hardening (PR #14), LI-02D payment-authorization outbox (PR #15), LI-02E embedded shipment authorization worker (PR #16), and LI-02F signed Hub webhooks/buyer tracking (PR #17) are merged. The shipment worker remains opt-in and disabled by default through `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false`; merging code does not authorize enabling it in production.
+**LI-01 and LI-02A–LI-02F are merged.** LI-02G-A private packing evidence is implemented on the current PR branches and awaits CI/review/merge; LI-02G-B buyer review and cancellation policy remains the next phase. LI-02C Phase A acceptance hardening (PR #14), LI-02D payment-authorization outbox (PR #15), LI-02E embedded shipment authorization worker (PR #16), and LI-02F signed Hub webhooks/buyer tracking (PR #17) are merged. The shipment worker remains opt-in and disabled by default through `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false`; merging code does not authorize enabling it in production.
 
 **Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
