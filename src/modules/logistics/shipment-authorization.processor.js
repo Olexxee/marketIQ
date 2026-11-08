@@ -1,6 +1,5 @@
 import { createLogisticHubClient } from "./logistic-hub.client.js";
 import { toMinorUnits } from "./money.js";
-import { ensureShipmentReviewForBookedShipment } from "./shipment-review.db.js";
 
 const MINOR_AMOUNT_PATTERN = /^(0|[1-9]\d*)$/;
 
@@ -165,7 +164,7 @@ export const createShipmentAuthorizationProcessor = ({
   });
 
   if (localShipment.status === "BOOKED") {
-    await ensureShipmentReviewForBookedShipment(sellerOrder.id);
+    await repository.ensureShipmentReviewForBookedShipment?.(sellerOrder.id);
     return { replay: true, shipment: localShipment };
   }
 
@@ -189,6 +188,6 @@ export const createShipmentAuthorizationProcessor = ({
     providerShipment,
     responseSnapshot: response,
   });
-  await ensureShipmentReviewForBookedShipment(sellerOrder.id);
+  await repository.ensureShipmentReviewForBookedShipment?.(sellerOrder.id);
   return { replay: Boolean(response?.replay), shipment: providerShipment };
 };
