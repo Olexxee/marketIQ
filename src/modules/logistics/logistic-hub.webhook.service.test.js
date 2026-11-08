@@ -86,3 +86,39 @@ test("passes only verified and sanitized event data to persistence", async () =>
   assert.equal(captured.envelope.data.shipmentReference, "LH-PCL-ABC123");
   assert.equal("recipientPhone" in captured.envelope.data, false);
 });
+
+
+test("accepts signed shipment cancellation and return-request event types", () => {
+  for (const [index, type, status] of [
+    [1, "shipment.cancelled", "CANCELLED"],
+    [2, "shipment.return_requested", "IN_TRANSIT"],
+  ]) {
+    const event = {
+      ...envelope,
+      id: `hub-resolution-event-${index}`,
+      type,
+      sequence: index + 10,
+      data: { shipmentReference: "LH-PCL-ABC123", status },
+    };
+    const rawBody = Buffer.from(JSON.stringify(event));
+    const timestamp = "1794052800";
+    const signature = createHmac("sha256", secret)
+      .update(Buffer.concat([Buffer.from(`${timestamp}.`), rawBody]))
+      .digest("hex");
+    const verified = verifyLogisticHubWebhookSignature({
+      rawBody,
+      headers: {
+        "x-logistic-hub-signature": `t=${timestamp},v1=${signature}`,
+        "x-logistic-hub-timestamp": timestamp,
+        "x-logistic-hub-event-id": event.id,
+        "x-logistic-hub-event-type": event.type,
+        "x-logistic-hub-event-sequence": String(event.sequence),
+      },
+      secret,
+      toleranceSeconds: 300,
+      now,
+    });
+    assert.equal(verified.envelope.type, type);
+    assert.equal(verified.envelope.data.status, status);
+  }
+});
