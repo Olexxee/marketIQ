@@ -81,7 +81,19 @@ export const listBuyerPackingEvidenceService = async (buyerId, sellerOrderId) =>
   if (!shipment) throw new NotFoundError("Shipment not found.");
   if (shipment.status !== "BOOKED") throw new ConflictError("Packing evidence is not available until the shipment is booked.");
   try {
-    return await clientFor(shipment.provider).listPackingEvidence(shipment.externalReference);
+    const result = await clientFor(shipment.provider).listPackingEvidence(shipment.externalReference);
+    return {
+      shipmentReference: result.shipmentReference,
+      evidence: result.evidence.map(item => ({
+        id: item.id,
+        slot: item.slot,
+        version: item.version,
+        originalName: item.originalName,
+        mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes,
+        uploadedAt: item.uploadedAt,
+      })),
+    };
   } catch (error) {
     mapHubError(error);
   }
