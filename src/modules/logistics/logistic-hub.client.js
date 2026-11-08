@@ -144,6 +144,75 @@ export function createLogisticHubClient({
     createShipment(input, idempotencyKey) {
       return request("/shipments", { method: "POST", body: input, idempotencyKey });
     },
+
+    async uploadPackingEvidence(externalFulfillmentReference, { buffer, mimeType, originalName, slot, actorReference }, idempotencyKey) {
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/octet-stream",
+        "X-Integration-Key-Id": settings.keyId,
+        "X-Integration-Secret": settings.secret,
+        "X-File-Content-Type": mimeType,
+        "X-File-Name": originalName,
+        "X-Evidence-Slot": slot,
+        "X-Evidence-Actor-Reference": actorReference,
+        "Idempotency-Key": idempotencyKey,
+      };
+      let response;
+      try {
+        response = await fetchImpl(`${settings.baseUrl}/api/v1/integrations/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/packing-evidence`, {
+          method: "POST", headers, body: buffer, redirect: "error", signal: AbortSignal.timeout(settings.timeoutMs),
+        });
+      } catch (error) {
+        const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+        throw new LogisticHubApiError(timedOut ? "Logistic Hub evidence upload timed out." : "Logistic Hub could not be reached.", {
+          code: timedOut ? "LOGISTIC_HUB_TIMEOUT" : "LOGISTIC_HUB_UNAVAILABLE", retryable: true,
+        });
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success !== true || !payload.data) {
+        const providerError = payload?.error ?? {};
+        throw new LogisticHubApiError(providerError.message || "Logistic Hub rejected the evidence upload.", {
+          status: response.status, code: providerError.code || "LOGISTIC_HUB_EVIDENCE_UPLOAD_FAILED",
+          retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+        });
+      }
+      return payload.data;
+    },
+    async listPackingEvidence(externalFulfillmentReference) {
+      return request(`/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/packing-evidence`);
+    },
+    async downloadPackingEvidence(evidenceId) {
+      let response;
+      try {
+        response = await fetchImpl(`${settings.baseUrl}/api/v1/integrations/packing-evidence/${encodeURIComponent(evidenceId)}/download`, {
+          method: "GET",
+          headers: {
+            Accept: "application/octet-stream",
+            "X-Integration-Key-Id": settings.keyId,
+            "X-Integration-Secret": settings.secret,
+          },
+          redirect: "error",
+          signal: AbortSignal.timeout(settings.timeoutMs),
+        });
+      } catch (error) {
+        const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+        throw new LogisticHubApiError(timedOut ? "Logistic Hub evidence download timed out." : "Logistic Hub could not be reached.", {
+          code: timedOut ? "LOGISTIC_HUB_TIMEOUT" : "LOGISTIC_HUB_UNAVAILABLE", retryable: true,
+        });
+      }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new LogisticHubApiError(payload?.error?.message || "Logistic Hub rejected the evidence download.", {
+          status: response.status, code: payload?.error?.code || "LOGISTIC_HUB_EVIDENCE_DOWNLOAD_FAILED",
+          retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+        });
+      }
+      return {
+        buffer: Buffer.from(await response.arrayBuffer()),
+        mimeType: response.headers.get("content-type")?.split(";")[0] || "application/octet-stream",
+        contentDisposition: response.headers.get("content-disposition") || "",
+      };
+    },
     async getShipmentByExternalReference(externalFulfillmentReference) {
       try {
         return await request(
