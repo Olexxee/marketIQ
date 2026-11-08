@@ -184,7 +184,7 @@ export function createLogisticHubClient({
     async downloadPackingEvidence(externalFulfillmentReference, evidenceId) {
       let response;
       try {
-        response = await fetchImpl(`${settings.baseUrl}/api/v1/integrations/packing-evidence/${encodeURIComponent(evidenceId)}/download`, {
+        response = await fetchImpl(`${settings.baseUrl}/api/v1/integrations/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/packing-evidence/${encodeURIComponent(evidenceId)}/download`, {
           method: "GET",
           headers: {
             Accept: "application/octet-stream",
