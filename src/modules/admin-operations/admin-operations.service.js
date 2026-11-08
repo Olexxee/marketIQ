@@ -3,6 +3,7 @@ import { ConflictError, NotFoundError } from "../../classes/errorClasses.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { requestRefundService } from "../payments/payment.service.js";
+import { getSellerSettlementHoldReason } from "./settlement-hold-policy.js";
 import {
   assertSellerSettlementWithinSubtotal,
   resolveSellerSettlementAmount,
@@ -276,6 +277,37 @@ export const listSettlementsService = async ({ status, page = 1, limit = 20 } = 
   return { items, total, page, limit };
 };
 
+const assertSellerOrderHasNoFinancialHold = async (tx, sellerOrder) => {
+  const [activeDispute, activeResolution, activeShipmentReview] = await Promise.all([
+    tx.dispute.findFirst({
+      where: { orderId: sellerOrder.orderId, status: { in: ["OPEN", "UNDER_REVIEW"] } },
+      select: { id: true, status: true },
+    }),
+    tx.shipmentResolutionRequest.findFirst({
+      where: {
+        sellerOrderId: sellerOrder.id,
+        status: { in: ["COMMAND_PENDING", "COMMAND_PROCESSING", "STOP_CONFIRMED", "RETURN_REQUESTED"] },
+      },
+      select: { id: true, status: true, physicalReturnConfirmed: true },
+    }),
+    tx.shipmentReview.findFirst({
+      where: {
+        sellerOrderId: sellerOrder.id,
+        status: { in: ["CANCELLATION_REQUESTED", "CANCELLATION_CONFIRMED", "RETURN_REQUESTED", "CANCELLATION_COMMAND_FAILED"] },
+      },
+      select: { id: true, status: true },
+    }),
+  ]);
+
+  const holdReason = getSellerSettlementHoldReason({
+    orderDisputedAt: sellerOrder.order.disputedAt,
+    disputeStatus: activeDispute?.status,
+    resolutionStatus: activeResolution?.status,
+    shipmentReviewStatus: activeShipmentReview?.status,
+  });
+  if (holdReason) throw new ConflictError(holdReason);
+};
+
 export const requestSellerSettlementService = async (actorId, sellerOrderId, { amount, adjustmentReason } = {}) => {
   return withTransaction(async (tx) => {
     let sellerOrder = await tx.sellerOrder.findUnique({
@@ -295,9 +327,7 @@ export const requestSellerSettlementService = async (actorId, sellerOrderId, { a
     if (sellerOrder.order.paymentStatus !== "SUCCESS") {
       throw new ConflictError("Parent order does not have a settled successful payment");
     }
-    if (sellerOrder.order.disputedAt) {
-      throw new ConflictError("A disputed order cannot be settled");
-    }
+    await assertSellerOrderHasNoFinancialHold(tx, sellerOrder);
 
     const pendingRefunds = await tx.refund.aggregate({
       where: { orderId: sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
@@ -373,10 +403,10 @@ export const approveSellerSettlementService = async (actorId, settlementId) => {
       throw new ConflictError(`Settlement cannot be approved from status ${settlement.status}`);
     }
     if (settlement.sellerOrder.status !== "COMPLETED" ||
-        settlement.sellerOrder.order.paymentStatus !== "SUCCESS" ||
-        settlement.sellerOrder.order.disputedAt) {
-      throw new ConflictError("Settlement eligibility changed; order must be completed, paid, and undisputed");
+        settlement.sellerOrder.order.paymentStatus !== "SUCCESS") {
+      throw new ConflictError("Settlement eligibility changed; order must be completed and paid");
     }
+    await assertSellerOrderHasNoFinancialHold(tx, settlement.sellerOrder);
     const pendingRefund = await tx.refund.count({
       where: { orderId: settlement.sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
     });
@@ -421,10 +451,10 @@ export const markSellerSettlementPaidService = async (actorId, settlementId, ext
       throw new ConflictError("Only approved settlements can be marked paid");
     }
     if (settlement.sellerOrder.status !== "COMPLETED" ||
-        settlement.sellerOrder.order.paymentStatus !== "SUCCESS" ||
-        settlement.sellerOrder.order.disputedAt) {
+        settlement.sellerOrder.order.paymentStatus !== "SUCCESS") {
       throw new ConflictError("Settlement eligibility changed before payout confirmation");
     }
+    await assertSellerOrderHasNoFinancialHold(tx, settlement.sellerOrder);
     const pendingRefund = await tx.refund.count({
       where: { orderId: settlement.sellerOrder.orderId, status: { in: ["REQUESTED", "APPROVED", "PROCESSING", "NEEDS_ATTENTION"] } },
     });

@@ -278,3 +278,24 @@ Buyer tracking is exposed at:
 The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation commands are implemented in LI-02G-A through C3. LI-02G-C4 reconciles signed `shipment.cancelled` and `shipment.return_requested` events into the buyer resolution request and shipment projection. Physical return execution and refund review remain separate follow-up work.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.
+
+
+## LI-02G-C5B — Dispute-aware seller settlement controls
+
+**Status:** Implemented on the C5B feature branch; pending CI and review.
+
+MarketIQ remains the sole authority for seller settlement and commercial liability. Logistic Hub supplies operational facts; Hub cancellation/return status does not itself authorize a refund, seller deduction, or payout.
+
+C5B adds a shared guard to seller settlement request, approval and payout-confirmation transitions. It blocks settlement when any of these applies:
+
+- The parent order is flagged disputed or has an active dispute in `OPEN` / `UNDER_REVIEW`. Dispute records are currently parent-order scoped, so the guard conservatively holds every SellerOrder under that order; it does not pretend the dispute is seller-specific.
+- That SellerOrder has a resolution command pending/processing, a confirmed stop, or a return request.
+- That SellerOrder has an active cancellation/return packing-review state, including failed cancellation command requiring operations attention.
+
+The guard is evaluated inside the settlement transaction after locking the parent Order, so request/approval/paid confirmation share the same hold decision. A logistics `RETURN_REQUESTED` status is a settlement hold only; `physicalReturnConfirmed` remains a separate fact and is never inferred from the request. Failed/rejected resolution requests and closed reviews do not remain active holds.
+
+**Money handling:** buyer Paystack checkout remains unchanged. Seller settlement remains manual. No automatic refund, seller deduction, clawback, partial settlement, or Hub payable adjustment is introduced. If a settlement was already paid before a dispute/return was raised, C5B does not reverse it; the existing C5A read-only review flags paid settlement for manual recovery review.
+
+**Scope limitation:** Disputes are currently parent-order scoped, not SellerOrder scoped. C5B intentionally applies a conservative parent-order hold until dispute creation supports a validated seller-order scope. A dispute on one parent order must not hold seller orders belonging to another parent order.
+
+**Validation:** pure hold-policy tests cover active dispute, resolution, cancellation/return review, inactive statuses and precedence. CI must also run Prisma validation/generation and the full test suite. No schema migration, production migration, deployment or worker enablement is required.
