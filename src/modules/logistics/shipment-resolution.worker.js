@@ -32,22 +32,20 @@ const processEvent = async event => {
 
   const attempt = event.attempts + 1;
   const requestId = event.payload?.shipmentResolutionRequestId;
-  if (typeof requestId === "string" && requestId.length > 0) {
-    await prisma.shipmentResolutionRequest.updateMany({
-      where: { id: requestId, status: "COMMAND_PENDING" },
-      data: { status: "COMMAND_PROCESSING" },
-    });
-  }
   try {
     if (typeof requestId !== "string" || requestId.length === 0) {
       throw Object.assign(new Error("Shipment resolution outbox event is missing its request identity."), { retryable: false });
     }
+    await prisma.shipmentResolutionRequest.updateMany({
+      where: { id: requestId, status: "COMMAND_PENDING" },
+      data: { status: "COMMAND_PROCESSING" },
+    });
     const request = await prisma.shipmentResolutionRequest.findUnique({
       where: { id: requestId },
       include: { shipment: { include: { provider: true } } },
     });
     if (!request) throw Object.assign(new Error("Shipment resolution request was not found."), { retryable: false });
-    if (request.status === "STOP_CONFIRMED" || request.status === "RETURN_REQUESTED") {
+    if (["STOP_CONFIRMED", "RETURN_REQUESTED", "REJECTED", "FAILED"].includes(request.status)) {
       await prisma.outboxEvent.update({ where: { id: event.id }, data: { status: "COMPLETED", processedAt: new Date(), lastError: null } });
       return;
     }
