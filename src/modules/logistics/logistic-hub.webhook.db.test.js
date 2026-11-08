@@ -183,3 +183,15 @@ test("does not let a stale cancellation event overwrite newer resolution state",
   assert.equal(state.shipment.status, "BOOKED");
   assert.equal(state.review.status, "RETURN_REQUESTED");
 });
+
+test("projects a Hub cancellation even when no buyer resolution request exists", async () => {
+  const { state, repository } = makeRepository();
+  state.resolution = null;
+  const result = await repository.persistVerifiedEvent(
+    makeVerified("hub-system-cancel-3", 3, "CANCELLED", "shipment.cancelled"),
+  );
+  assert.equal(result.projected, true);
+  assert.equal(state.shipment.status, "CANCELLED");
+  assert.equal(state.shipment.providerStatus, "CANCELLED");
+  assert.equal(state.review.status, "CANCELLATION_REQUESTED");
+});
