@@ -28,12 +28,12 @@ export const findBuyerShipmentForPackingEvidence = (sellerOrderId, buyerId) =>
   prisma.logisticsShipment.findFirst({
     where: {
       sellerOrderId,
-      provider: { code: "LOGISTIC_HUB", isActive: true },
+      provider: { code: "LOGISTIC_HUB" },
       sellerOrder: { order: { buyerId } },
     },
     select: {
       externalReference: true,
       status: true,
-      provider: { select: { baseUrl: true } },
+      provider: { select: { baseUrl: true, isActive: true } },
     },
   });
