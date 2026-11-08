@@ -259,6 +259,6 @@ Buyer tracking is exposed at:
 
 `GET /api/checkout/logistics/shipments/:sellerOrderId/tracking`
 
-The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation instructions are not implemented by LI-02F.
+The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation commands are implemented in the subsequent LI-02G phases; physical return execution and refund review remain separate follow-up work.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.
