@@ -20,8 +20,19 @@ export const requestBuyerShipmentCancellationService = async (buyerId, sellerOrd
     reason: normalizeReason(input?.reason),
   });
   if (result.notFound) throw new NotFoundError("A paid, booked Logistic Hub shipment for this order was not found.");
-  if (result.conflict) throw new ConflictError("This shipment already has a terminal resolution state.");
-  return { ...result.request, replay: result.replay };
+  if (result.conflict) throw new ConflictError("A cancellation or return request already exists for this shipment; refresh its current state.");
+  const request = result.request;
+  return {
+    id: request.id,
+    sellerOrderId: request.sellerOrderId,
+    status: request.status,
+    reason: request.reason,
+    physicalReturnConfirmed: request.physicalReturnConfirmed,
+    requestedAt: request.requestedAt,
+    commandAcceptedAt: request.commandAcceptedAt,
+    resolvedAt: request.resolvedAt,
+    replay: result.replay,
+  };
 };
 
 export const getBuyerShipmentResolutionService = async (buyerId, sellerOrderId) => {
