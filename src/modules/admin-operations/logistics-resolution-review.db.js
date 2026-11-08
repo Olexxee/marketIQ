@@ -3,7 +3,12 @@ import prisma from "../../config/prisma.js";
 const reviewInclude = {
   buyer: { select: { id: true, fullName: true } },
   sellerOrder: {
-    include: {
+    select: {
+      id: true,
+      status: true,
+      subtotal: true,
+      shippingTotal: true,
+      total: true,
       seller: { select: { id: true, businessName: true } },
       settlement: {
         select: {
@@ -20,7 +25,17 @@ const reviewInclude = {
         },
       },
       order: {
-        include: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true,
+          subtotal: true,
+          shippingTotal: true,
+          tax: true,
+          total: true,
+          createdAt: true,
+          updatedAt: true,
           payments: {
             select: {
               id: true,
@@ -74,7 +89,21 @@ const reviewInclude = {
     },
   },
   shipment: {
-    include: {
+    select: {
+      id: true,
+      externalReference: true,
+      trackingReference: true,
+      status: true,
+      providerStatus: true,
+      lastEventSequence: true,
+      customerDeliveryChargeMinor: true,
+      agreedLogisticsCostMinor: true,
+      currency: true,
+      billingAgreementReference: true,
+      bookedAt: true,
+      createdAt: true,
+      updatedAt: true,
+
       events: {
         select: {
           externalEventId: true,
