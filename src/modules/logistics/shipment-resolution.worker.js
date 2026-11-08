@@ -31,10 +31,12 @@ const processEvent = async event => {
 
   const attempt = event.attempts + 1;
   const requestId = event.payload?.shipmentResolutionRequestId;
-  await prisma.shipmentResolutionRequest.updateMany({
-    where: { id: requestId, status: "COMMAND_PENDING" },
-    data: { status: "COMMAND_PROCESSING" },
-  });
+  if (typeof requestId === "string" && requestId.length > 0) {
+    await prisma.shipmentResolutionRequest.updateMany({
+      where: { id: requestId, status: "COMMAND_PENDING" },
+      data: { status: "COMMAND_PROCESSING" },
+    });
+  }
   try {
     const request = await prisma.shipmentResolutionRequest.findUnique({
       where: { id: requestId },
