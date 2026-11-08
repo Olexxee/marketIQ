@@ -3,6 +3,7 @@ import { ConflictError, NotFoundError } from "../../classes/errorClasses.js";
 import { publishEvent } from "../events/event.publisher.js";
 import { EVENT_TYPES } from "../events/event.types.js";
 import { requestRefundService } from "../payments/payment.service.js";
+import { getSellerSettlementHoldReason } from "./settlement-hold-policy.js";
 import {
   assertSellerSettlementWithinSubtotal,
   resolveSellerSettlementAmount,
@@ -277,41 +278,34 @@ export const listSettlementsService = async ({ status, page = 1, limit = 20 } = 
 };
 
 const assertSellerOrderHasNoFinancialHold = async (tx, sellerOrder) => {
-  const activeDispute = await tx.dispute.findFirst({
-    where: { orderId: sellerOrder.orderId, status: { in: ["OPEN", "UNDER_REVIEW"] } },
-    select: { id: true },
-  });
-  if (activeDispute || sellerOrder.order.disputedAt) {
-    throw new ConflictError("An active order dispute blocks seller settlement; manual review is required");
-  }
+  const [activeDispute, activeResolution, activeShipmentReview] = await Promise.all([
+    tx.dispute.findFirst({
+      where: { orderId: sellerOrder.orderId, status: { in: ["OPEN", "UNDER_REVIEW"] } },
+      select: { id: true, status: true },
+    }),
+    tx.shipmentResolutionRequest.findFirst({
+      where: {
+        sellerOrderId: sellerOrder.id,
+        status: { in: ["COMMAND_PENDING", "COMMAND_PROCESSING", "STOP_CONFIRMED", "RETURN_REQUESTED"] },
+      },
+      select: { id: true, status: true, physicalReturnConfirmed: true },
+    }),
+    tx.shipmentReview.findFirst({
+      where: {
+        sellerOrderId: sellerOrder.id,
+        status: { in: ["CANCELLATION_REQUESTED", "CANCELLATION_CONFIRMED", "RETURN_REQUESTED", "CANCELLATION_COMMAND_FAILED"] },
+      },
+      select: { id: true, status: true },
+    }),
+  ]);
 
-  // Resolution requests are per SellerOrder. RETURN_REQUESTED is deliberately
-  // a financial hold, not proof that the parcel has physically returned.
-  const activeResolution = await tx.shipmentResolutionRequest.findFirst({
-    where: {
-      sellerOrderId: sellerOrder.id,
-      status: { in: ["COMMAND_PENDING", "COMMAND_PROCESSING", "STOP_CONFIRMED", "RETURN_REQUESTED"] },
-    },
-    select: { id: true, status: true, physicalReturnConfirmed: true },
+  const holdReason = getSellerSettlementHoldReason({
+    orderDisputedAt: sellerOrder.order.disputedAt,
+    disputeStatus: activeDispute?.status,
+    resolutionStatus: activeResolution?.status,
+    shipmentReviewStatus: activeShipmentReview?.status,
   });
-  if (activeResolution) {
-    throw new ConflictError(
-      `A logistics resolution (${activeResolution.status}) blocks seller settlement; manual financial review is required`,
-    );
-  }
-
-  const activeShipmentReview = await tx.shipmentReview.findFirst({
-    where: {
-      sellerOrderId: sellerOrder.id,
-      status: { in: ["CANCELLATION_REQUESTED", "CANCELLATION_CONFIRMED", "RETURN_REQUESTED", "CANCELLATION_COMMAND_FAILED"] },
-    },
-    select: { id: true, status: true },
-  });
-  if (activeShipmentReview) {
-    throw new ConflictError(
-      `A shipment review (${activeShipmentReview.status}) blocks seller settlement; manual financial review is required`,
-    );
-  }
+  if (holdReason) throw new ConflictError(holdReason);
 };
 
 export const requestSellerSettlementService = async (actorId, sellerOrderId, { amount, adjustmentReason } = {}) => {
