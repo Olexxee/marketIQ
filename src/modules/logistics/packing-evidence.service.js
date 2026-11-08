@@ -64,6 +64,13 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
   ) {
     throw new ConflictError("Packing evidence can only be submitted for a paid seller order with a booked Logistic Hub shipment.");
   }
+  const reviewGate = shipment.packingReview;
+  if (!reviewGate || reviewGate.status !== "WAITING_FOR_EVIDENCE") {
+    throw new ConflictError("Packing evidence is frozen because the shipment is not awaiting evidence.");
+  }
+  if (reviewGate.evidenceDeadlineAt <= new Date()) {
+    throw new ConflictError("The 24-hour evidence submission deadline has passed; operations review is required.");
+  }
   const key = requireIdempotencyKey(idempotencyKey);
   try {
     const client = clientFor(shipment.provider);
