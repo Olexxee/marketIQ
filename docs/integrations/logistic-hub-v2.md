@@ -1,6 +1,6 @@
 # Logistic Hub Integration Contract v2 — MarketIQ
 
-**Status:** Contract v2. LI-02D, LI-02E, LI-02F and LI-02G-A are merged. LI-02G-B is in implementation: Logistic Hub dispatch-gate/freeze PR #115 is open, and MarketIQ buyer-review persistence, four-hour timer and dispatch-release outbox are on the current feature branch. Buyer cancellation/return coordination is not yet implemented. The shared embedded worker remains opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
+**Status:** LI-02G-A, LI-02G-B, LI-02G-C1A and LI-02G-C2 are merged across the two backends. LI-02G-C3 is in review on MarketIQ PR #22: buyer cancellation requests, durable Hub stop/return commands and a separate resolution state machine are implemented on the feature branch but not yet merged. The shared embedded logistics workers remain opt-in and disabled by default; merged code and CI are not proof of production deployment or configured-Hub staging acceptance.
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
@@ -136,6 +136,32 @@ The review and dispatch-release worker runs inside the existing MarketIQ server 
 
 A cancellation request is never proof that a shipment has been stopped, returned or refunded. The Hub reports actual custody and supported stop/hold/return outcomes; MarketIQ records the financial decision separately.
 
+### LI-02G-C3 — buyer cancellation and return request API
+
+MarketIQ exposes buyer-authenticated endpoints under the existing `/api/checkout/logistics` route:
+
+- `POST /shipments/:sellerOrderId/cancellation-request` with a JSON body containing a required `reason` (5–1000 characters).
+- `GET /shipments/:sellerOrderId/cancellation-request` to retrieve the request state.
+
+The authenticated buyer must own the paid seller order, and its Logistic Hub shipment must already be booked. The API creates one durable resolution request per seller order; repeat submissions return the existing request rather than creating duplicate commands. The request and its outbox event are committed in one MarketIQ transaction.
+
+The embedded LI-02G-C3 worker first asks Logistic Hub to stop the shipment using a stable idempotency key. If and only if Hub responds with the explicit custody/stop-window conflict codes `INTEGRATION_SHIPMENT_IN_CUSTODY_USE_RETURN` or `INTEGRATION_SHIPMENT_STOP_WINDOW_CLOSED`, MarketIQ submits the Hub return-request command with its own stable idempotency key. Other conflicts are not silently converted into returns.
+
+Resolution states:
+
+| State | Meaning |
+|---|---|
+| `COMMAND_PENDING` | Buyer request and durable command are stored; Hub has not confirmed an outcome |
+| `COMMAND_PROCESSING` | Embedded worker has claimed the command |
+| `STOP_CONFIRMED` | Hub confirmed the pre-custody stop; MarketIQ shipment projection is marked cancelled |
+| `RETURN_REQUESTED` | Hub durably accepted a return request; this is not physical return confirmation |
+| `REJECTED` | Hub rejected the request for a non-retryable operational or state conflict |
+| `FAILED` | Command exhausted its retry budget or could not be completed |
+
+A confirmed Hub stop does **not** automatically cancel the MarketIQ seller order, issue a refund, reverse Paystack, or adjust seller settlement. Those are separate MarketIQ financial and order decisions. A return acknowledgement always keeps `physicalReturnConfirmed=false`; it does not prove the parcel was stopped, recovered, routed back or received by the seller/hub. C4 must reconcile signed Hub outcome webhooks; a later physical-return execution phase must add actual reverse-route and custody milestones.
+
+The worker runs in the existing MarketIQ server process, shares the existing opt-in shipment-worker setting, and remains disabled by default. No separate Render worker service or production configuration change is part of this phase.
+
 ## 6. Event ownership and external references
 
 An event belongs to the system where the underlying action occurred. The receiving system stores an external event reference and a local projection/receipt; it does not claim ownership of the source system's internal event or mutate the source system's database.
@@ -233,6 +259,6 @@ Buyer tracking is exposed at:
 
 `GET /api/checkout/logistics/shipments/:sellerOrderId/tracking`
 
-The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation instructions are not implemented by LI-02F.
+The endpoint requires the authenticated, verified buyer and scopes the shipment through its owning order. It returns the Hub tracking reference, MarketIQ booking status, separate Hub `providerStatus`, last sequence and ordered sanitized event timeline. It does not mutate MarketIQ order/payment/refund/settlement state. Packing evidence, buyer review and cancellation commands are implemented in the subsequent LI-02G phases; physical return execution and refund review remain separate follow-up work.
 
 Every slice updates this contract and both repositories' implementation status. Documentation is not evidence that a feature is implemented.

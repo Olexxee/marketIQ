@@ -21,8 +21,8 @@ export const createOutboxEvent = async (
 export const findPendingOutboxEvents = async (limit = 25) => {
   return prisma.outboxEvent.findMany({
     where: {
-      // Only the dedicated LI-02E worker may consume shipment authorizations.
-      eventType: { not: EVENT_TYPES.LOGISTICS_SHIPMENT_AUTHORIZATION_REQUESTED },
+      // Dedicated LI-02E and LI-02G-C3 workers own their logistics command events.
+      eventType: { notIn: [EVENT_TYPES.LOGISTICS_SHIPMENT_AUTHORIZATION_REQUESTED, "LOGISTICS_SHIPMENT_RESOLUTION_REQUESTED"] },
       status: "PENDING",
       availableAt: {
         lte: new Date(),

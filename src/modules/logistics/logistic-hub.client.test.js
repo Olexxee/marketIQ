@@ -228,3 +228,38 @@ test("freezes all packing evidence and authorizes dispatch with stable idempoten
   assert.equal(calls[1].options.headers["Idempotency-Key"], "mqi-dispatch-release-review-1-v1");
   assert.deepEqual(JSON.parse(calls[1].options.body), { reason: "REVIEW_TIMEOUT" });
 });
+
+
+test("sends custody-aware stop and return commands with stable idempotency keys", async () => {
+  const calls = [];
+  const client = createLogisticHubClient({
+    config,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        status: url.endsWith("/return-request") ? 202 : 200,
+        json: async () => ({
+          success: true,
+          data: url.endsWith("/return-request")
+            ? { status: "RETURN_REQUESTED", physicalReturnConfirmed: false }
+            : { status: "STOPPED" },
+        }),
+      };
+    },
+  });
+
+  const stopped = await client.stopShipment("mqi/ref 1", "Buyer cancellation", "mqi-stop-request-1-v1");
+  const returned = await client.requestShipmentReturn("mqi/ref 1", "Buyer cancellation", "mqi-return-request-1-v1");
+
+  assert.equal(stopped.status, "STOPPED");
+  assert.equal(returned.status, "RETURN_REQUESTED");
+  assert.equal(returned.physicalReturnConfirmed, false);
+  assert.equal(calls[0].url, "https://hub.example.test/api/v1/integrations/shipments/by-external-reference/mqi%2Fref%201/stop");
+  assert.equal(calls[1].url, "https://hub.example.test/api/v1/integrations/shipments/by-external-reference/mqi%2Fref%201/return-request");
+  for (const [index, key] of ["mqi-stop-request-1-v1", "mqi-return-request-1-v1"].entries()) {
+    assert.equal(calls[index].options.method, "POST");
+    assert.equal(calls[index].options.headers["Idempotency-Key"], key);
+    assert.deepEqual(JSON.parse(calls[index].options.body), { reason: "Buyer cancellation" });
+  }
+});

@@ -330,6 +330,15 @@ enum LogisticsShipmentStatus {
   CANCELLED
 }
 
+enum ShipmentResolutionStatus {
+  COMMAND_PENDING
+  COMMAND_PROCESSING
+  STOP_CONFIRMED
+  RETURN_REQUESTED
+  REJECTED
+  FAILED
+}
+
 enum ShipmentReviewStatus {
   WAITING_FOR_EVIDENCE
   PENDING_BUYER_REVIEW
@@ -340,6 +349,8 @@ enum ShipmentReviewStatus {
   CANCELLATION_CONFIRMED
   RETURN_REQUESTED
   CLOSED
+  CANCELLATION_REJECTED
+  CANCELLATION_COMMAND_FAILED
 }
 
 enum LogisticsWebhookStatus {
@@ -527,6 +538,7 @@ model User {
   settlementsRequested   SellerSettlement[] @relation("SettlementRequestedBy")
   settlementsProcessed   SellerSettlement[] @relation("SettlementProcessedBy")
   shipmentReviews        ShipmentReview[] @relation("ShipmentReviewBuyer")
+  shipmentResolutionRequests ShipmentResolutionRequest[] @relation("ShipmentResolutionBuyer")
 
   sourcingRequests  SourcingRequest[]
   sourcingResponses SourcingResponse[]
@@ -1351,6 +1363,7 @@ model SellerOrder {
   logisticsQuote LogisticsQuote?
   logisticsShipment LogisticsShipment?
   shipmentReview ShipmentReview?
+  shipmentResolutionRequest ShipmentResolutionRequest?
 
   @@unique([orderId, sellerId])
   @@index([sellerId])
@@ -2133,6 +2146,7 @@ model LogisticsShipment {
 
   events LogisticsEvent[]
   packingReview ShipmentReview?
+  resolutionRequest ShipmentResolutionRequest?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2177,6 +2191,32 @@ model ShipmentReview {
   @@index([buyerId, createdAt])
 }
  
+model ShipmentResolutionRequest {
+  id String @id @default(cuid())
+
+  sellerOrderId String @unique
+  shipmentId String @unique
+  buyerId String
+
+  status ShipmentResolutionStatus @default(COMMAND_PENDING)
+  reason String
+  hubResponse Json?
+  physicalReturnConfirmed Boolean @default(false)
+  requestedAt DateTime @default(now())
+  commandAcceptedAt DateTime?
+  resolvedAt DateTime?
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Restrict)
+  shipment LogisticsShipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  buyer User @relation("ShipmentResolutionBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([buyerId, createdAt])
+}
+
 model LogisticsEvent {
   id String @id @default(cuid())
 
