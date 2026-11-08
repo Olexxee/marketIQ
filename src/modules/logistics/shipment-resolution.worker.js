@@ -1,6 +1,7 @@
 import prisma from "../../config/prisma.js";
 import { env } from "../../config/env.js";
-import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
+import { createLogisticHubClient } from "./logistic-hub.client.js";
+import { sendCustodyAwareShipmentResolution } from "./shipment-resolution.processor.js";
 
 const EVENT_TYPE = "LOGISTICS_SHIPMENT_RESOLUTION_REQUESTED";
 const BATCH_SIZE = 10;
@@ -54,24 +55,14 @@ const processEvent = async event => {
     const client = createLogisticHubClient({
       config: { ...env.logisticHub, baseUrl: env.logisticHub.baseUrl || request.shipment.provider.baseUrl },
     });
-    const idempotencyKey = `mqi-stop-${request.id}-v1`;
-    let response;
-    let finalStatus = "STOP_CONFIRMED";
-    try {
-      response = await client.stopShipment(request.shipment.externalReference, request.reason, idempotencyKey);
-    } catch (error) {
-      const requiresReturn = error instanceof LogisticHubApiError && [
-        "INTEGRATION_SHIPMENT_IN_CUSTODY_USE_RETURN",
-        "INTEGRATION_SHIPMENT_STOP_WINDOW_CLOSED",
-      ].includes(error.code);
-      if (!requiresReturn) throw error;
-      response = await client.requestShipmentReturn(
-        request.shipment.externalReference,
-        request.reason,
-        `mqi-return-${request.id}-v1`,
-      );
-      finalStatus = "RETURN_REQUESTED";
-    }
+    const command = await sendCustodyAwareShipmentResolution({
+      client,
+      externalReference: request.shipment.externalReference,
+      reason: request.reason,
+      requestId: request.id,
+    });
+    const response = command.response;
+    const finalStatus = command.status;
 
     await prisma.$transaction(async tx => {
       await tx.shipmentResolutionRequest.update({
