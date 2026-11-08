@@ -56,13 +56,13 @@ marketplaceBackend/
 
 ## Integration status
 
-**LI-01, LI-02A, LI-02B, LI-02C and Phase A acceptance hardening are merged. LI-02D payment-authorization outbox is merged. LI-02E embedded shipment authorization worker is implemented on a feature branch pending CI/review; shipment submission is opt-in through `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false` by default.**
+**LI-01 and LI-02A–LI-02F are merged.** LI-02C Phase A acceptance hardening (PR #14), LI-02D payment-authorization outbox (PR #15), LI-02E embedded shipment authorization worker (PR #16), and LI-02F signed Hub webhooks/buyer tracking (PR #17) are merged. The shipment worker remains opt-in and disabled by default through `LOGISTIC_HUB_SHIPMENT_WORKER_ENABLED=false`; merging code does not authorize enabling it in production.
 
 **Current contract:** [Logistic Hub Integration Contract v2](docs/integrations/logistic-hub-v2.md). The earlier [v1 audit/contract](docs/integrations/logistic-hub-v1.md) is retained as historical source-audit evidence and is superseded where it conflicts with v2. The contract records the audited checkout/payment constraints, quote-before-payment flow, external identity/idempotency, API and webhook requirements, and LI-02–LI-06 implementation gates.
 
 MarketIQ will integrate with Logistic Hub as an external logistics provider.
 
-LI-02C quote acquisition, checkout pricing and Phase A acceptance hardening are merged. The merged work adds explicit kg/g and cm/mm measurements with seller-declared source and fail-closed legacy behavior; exact Paystack reference/currency/integer-kobo validation; seller settlement capped at merchandise subtotal; payment-capture ledger separation and suspense allocation; quote-expiry, concurrency and retry coverage. LI-02D adds a database-unique outbox dedupe key and atomically records one shipment-authorization event for each SellerOrder with an accepted Logistic Hub quote. LI-02E adds an opt-in worker embedded in the same MarketIQ Render process: it claims only shipment-authorization events, revalidates the immutable accepted quote/payment snapshot, looks up Hub by external fulfilment reference before create, submits the exact payment attestation with a stable idempotency key, persists the Hub booking reference and retries transient failures with bounded backoff. Permanent failures are dead-lettered in the outbox; the worker remains disabled until explicitly enabled in Render. The applications remain independently deployable services with separate databases and domain ownership.
+LI-02C quote acquisition, checkout pricing and Phase A acceptance hardening are merged in backend PR #14. The merged work adds explicit kg/g and cm/mm measurement units and source metadata, fail-closed handling for unclassified legacy variants, exact Paystack reference/currency/integer-kobo validation, seller settlement capped at merchandise subtotal, payment-capture ledger separation and suspense allocation, and quote-expiry/concurrency/retry coverage. LI-02D (PR #15) adds a database-unique outbox dedupe key and atomically records one shipment-authorization event per eligible SellerOrder. LI-02E (PR #16) adds the opt-in worker in the same MarketIQ Render process: it claims authorization events, revalidates the immutable quote/payment snapshot, looks up Hub by external fulfilment reference before create, submits payment attestation with a stable idempotency key, persists the Hub booking reference and retries transient failures with bounded backoff. LI-02F (PR #17) adds signed Hub webhook ingestion, deduplication, sequence-safe event processing and buyer-authenticated tracking. Permanent worker failures are dead-lettered. The worker remains disabled until production configuration and staging acceptance are explicitly completed. The applications remain independently deployable services with separate databases and domain ownership.
 
 ### Agreed commercial and shipment model
 
@@ -146,7 +146,7 @@ The exact schema, relations, indexes, deletion behavior and event retention poli
 - Until a packing model exists, quote requests reject cart lines with quantity greater than one rather than guessing whether units are consolidated or shipped separately.
 - Checkout must use the same saved delivery address used to request the quote. Address coordinate changes, inactive pickup mappings, expiry, or price snapshot mismatch reject checkout.
 
-**Measurement-unit caveat:** the current Prisma variant schema stores decimal `weight`, `length`, `width` and `height` without unit metadata. The quote adapter currently interprets weight as kilograms and dimensions as centimetres, then rounds upward to integer grams/millimetres. This interpretation must be verified against the seller UI/data-entry contract before production quoting; otherwise add explicit unit metadata and a migration rather than guessing.
+**Measurement-unit status:** LI-02C Phase A PR #14 has added explicit package measurement units/source and migration support. New physical variants must provide complete positive measurements with explicit units and source. Existing legacy variants are not silently assumed to be kg/cm or auto-backfilled; they remain unquoteable until reviewed and updated. Treat the seller-facing data-entry workflow and existing inventory remediation as a staging/release check, not as a reason to infer units.
 
 ## Logistic Hub changes required
 
@@ -206,11 +206,10 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 - **LI-02B:** quote/option persistence, selected-option linkage, provider-scoped idempotency/external references, event sequence constraints, webhook signature metadata and fulfillment ownership mode.
 - **LI-02C:** authenticated Logistic Hub quote client, seller-scoped quote acquisition, verified warehouse/destination/category mappings, local quote/option persistence, option acceptance, checkout snapshot/expiry revalidation and delivery-charge inclusion in Order/SellerOrder totals.
 
-### Phase A — LI-02C acceptance hardening (PRs open)
+### Phase A — LI-02C acceptance hardening (merged)
 
-- **MarketIQ PR #14:** explicit package measurement units/source; legacy variants fail closed until reviewed; exact Paystack reference/currency/integer-kobo checks; seller settlement limited to merchandise subtotal; ledger separation for seller payable, Hub payable, delivery margin/subsidy and tax; delivery/refund suspense allocation; quote-expiry and concurrency/retry tests.
-- **Storefront PR #9:** seller entry and editing of packed weight/dimensions with explicit kg/g and cm/mm units, including legacy variant remediation.
-- **Verification:** both backend workflows passed on the PR head with 92/92 tests; the storefront Vercel check passed. The PRs remain open and unmerged.
+- **MarketIQ backend PR #14:** merged November 7, 2026. Explicit package measurement units/source; fail-closed legacy variants; Paystack reference/currency/integer-kobo checks; seller settlement cap; ledger allocation/suspense controls; quote-expiry, concurrency and retry coverage. Both backend checks passed on the PR head.
+- **Frontend status:** the former README reference to Logistic Hub frontend PR #9 was incorrect; that PR concerns refresh-cookie authentication, not MarketIQ seller package measurements. Do not treat it as evidence of MarketIQ storefront measurement UI completion. Verify the MarketIQ seller variant UI/data-entry path separately before production quoting.
 
 ### LI-02C acceptance and production release gates
 
@@ -220,6 +219,6 @@ The authoritative integration contract is [docs/integrations/logistic-hub-v2.md]
 4. Run the complete staged quote → option acceptance → checkout → Paystack verification flow against configured Logistic Hub credentials.
 5. Reconcile historical settlements/refunds recorded under the old gross-total allocation. This change does not rewrite historical ledger entries.
 
-LI-02D is now merged. These configured-Hub staging checks remain release gates before enabling LI-02E shipment submission in production. MarketIQ payment success remains independent of Logistic Hub availability.
+LI-02D, LI-02E and LI-02F are merged. The configured-Hub quote → option acceptance → checkout → Paystack verification → shipment booking → webhook/tracking staging flow remains a release gate before enabling LI-02E shipment submission in production. MarketIQ payment success remains independent of Logistic Hub availability.
 
 No production Render configuration, production database migration or deployment has been changed by these PRs.
