@@ -88,6 +88,12 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
     const currentEvidence = await client.listPackingEvidence(shipment.externalReference);
     const acceptedSlots = new Set(currentEvidence.evidence.map(item => item.slot));
     const evidenceComplete = PACKING_EVIDENCE_SLOTS.every(requiredSlot => acceptedSlots.has(requiredSlot));
+    const frozen = evidenceComplete
+      ? await client.freezePackingEvidence(
+        shipment.externalReference,
+        `mqi-freeze-${fulfillment.sellerOrder.id}-v1`,
+      )
+      : null;
     const review = evidenceComplete
       ? await startPackingReview({
         sellerOrderId: fulfillment.sellerOrder.id,
@@ -95,7 +101,7 @@ export const uploadPackingEvidenceService = async (sellerId, fulfillmentId, { sl
         buyerId: fulfillment.sellerOrder.order.buyerId,
       })
       : null;
-    return { ...uploaded, evidenceComplete, review };
+    return { ...uploaded, evidenceComplete, evidenceFrozenAt: frozen?.frozenAt ?? null, review };
   } catch (error) {
     mapHubError(error);
   }
