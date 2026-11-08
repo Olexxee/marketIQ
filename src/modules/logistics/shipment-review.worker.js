@@ -133,6 +133,20 @@ const processDispatchReleaseEvent = async event => {
   }
 };
 
+const recoverStaleDispatchReleaseEvents = () =>
+  prisma.outboxEvent.updateMany({
+    where: {
+      eventType: EVENT_TYPE,
+      status: "PROCESSING",
+      updatedAt: { lt: new Date(Date.now() - 15 * 60 * 1000) },
+    },
+    data: {
+      status: "PENDING",
+      availableAt: new Date(),
+      lastError: "Recovered stale LI-02G-B dispatch-release event after worker interruption",
+    },
+  });
+
 const processPendingDispatchReleaseEvents = async () => {
   const events = await prisma.outboxEvent.findMany({
     where: { eventType: EVENT_TYPE, status: "PENDING", availableAt: { lte: new Date() } },
@@ -143,6 +157,7 @@ const processPendingDispatchReleaseEvents = async () => {
 };
 
 export const processShipmentReviewWork = async () => {
+  await recoverStaleDispatchReleaseEvents();
   await initializeExpiredReviewDecisions();
   await flagOverdueEvidence();
   await processPendingDispatchReleaseEvents();
