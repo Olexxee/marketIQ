@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { BadRequestError, ConflictError, NotFoundError, ServiceUnavailableError } from "../../classes/errorClasses.js";
 import { env } from "../../config/env.js";
 import { createLogisticHubClient, LogisticHubApiError } from "./logistic-hub.client.js";
@@ -91,7 +90,7 @@ export const downloadBuyerPackingEvidenceService = async (buyerId, sellerOrderId
   const shipment = await findBuyerShipmentForPackingEvidence(sellerOrderId, buyerId);
   if (!shipment) throw new NotFoundError("Shipment not found.");
   try {
-    return await clientFor(shipment.provider).downloadPackingEvidence(evidenceId);
+    return await clientFor(shipment.provider).downloadPackingEvidence(shipment.externalReference, evidenceId);
   } catch (error) {
     mapHubError(error);
   }
