@@ -10,10 +10,14 @@ import {
 } from "./logistics.controller.js";
 import { getShipmentTracking } from "./logistics-tracking.controller.js";
 import { shipmentTrackingParamsSchema } from "./logistics.validation.js";
+import { listBuyerPackingEvidence, downloadBuyerPackingEvidence } from "./packing-evidence.controller.js";
+import { buyerPackingEvidenceParamsSchema, buyerPackingEvidenceDownloadParamsSchema } from "./packing-evidence.validation.js";
 
 const router = Router();
 router.use(authenticate, requireVerifiedEmail);
 router.get("/shipments/:sellerOrderId/tracking", validateParams(shipmentTrackingParamsSchema), getShipmentTracking);
+router.get("/shipments/:sellerOrderId/packing-evidence", validateParams(buyerPackingEvidenceParamsSchema), listBuyerPackingEvidence);
+router.get("/shipments/:sellerOrderId/packing-evidence/:evidenceId/download", validateParams(buyerPackingEvidenceDownloadParamsSchema), downloadBuyerPackingEvidence);
 router.post("/quotes", validateBody(quoteCreateSchema), createDeliveryQuote);
 router.get("/quotes/:quoteId", validateParams(quoteParamsSchema), getDeliveryQuote);
 router.post("/quotes/:quoteId/options/:optionId/accept", validateParams(quoteOptionParamsSchema), acceptDeliveryQuoteOption);
