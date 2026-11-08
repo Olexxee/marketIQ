@@ -134,6 +134,13 @@ export function createLogisticHubWebhookRepository({ prismaClient } = {}) {
 
         // Resolution state is reconciled only from a newer, signed Hub event.
         // A command HTTP response is not a substitute for this source event.
+        if (advancesProjection && envelope.type === "shipment.cancelled") {
+          await tx.logisticsShipment.updateMany({
+            where: { id: shipment.id, status: "BOOKED" },
+            data: { status: "CANCELLED" },
+          });
+        }
+
         if (advancesProjection && ["shipment.cancelled", "shipment.return_requested"].includes(envelope.type)) {
           const resolution = await tx.shipmentResolutionRequest.findUnique({
             where: { shipmentId: shipment.id },
@@ -153,10 +160,6 @@ export function createLogisticHubWebhookRepository({ prismaClient } = {}) {
                   commandAcceptedAt: new Date(envelope.occurredAt),
                   resolvedAt: new Date(envelope.occurredAt),
                 },
-              });
-              await tx.logisticsShipment.updateMany({
-                where: { id: shipment.id, status: "BOOKED" },
-                data: { status: "CANCELLED" },
               });
               await tx.shipmentReview.updateMany({
                 where: { sellerOrderId: resolution.sellerOrderId, status: "CANCELLATION_REQUESTED" },
