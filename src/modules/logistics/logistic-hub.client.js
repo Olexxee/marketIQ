@@ -153,6 +153,18 @@ export function createLogisticHubClient({
         { method: "POST", body: { reason }, idempotencyKey },
       );
     },
+    stopShipment(externalFulfillmentReference, reason, idempotencyKey) {
+      return request(
+        `/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/stop`,
+        { method: "POST", body: { reason }, idempotencyKey },
+      );
+    },
+    requestShipmentReturn(externalFulfillmentReference, reason, idempotencyKey) {
+      return request(
+        `/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/return-request`,
+        { method: "POST", body: { reason }, idempotencyKey },
+      );
+    },
     createShipment(input, idempotencyKey) {
       return request("/shipments", { method: "POST", body: input, idempotencyKey });
     },
