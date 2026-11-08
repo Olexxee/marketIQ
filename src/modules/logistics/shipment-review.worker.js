@@ -61,16 +61,21 @@ const flagOverdueEvidence = async () => {
         data: { status: "EVIDENCE_OVERDUE" },
       });
       if (changed.count !== 1) return;
-      await tx.outboxEvent.createMany({
-        data: [{
-          eventType: "LOGISTICS_PACKING_EVIDENCE_OVERDUE",
-          aggregateType: "SHIPMENT_REVIEW",
-          aggregateId: review.id,
-          dedupeKey: `li02gb-evidence-overdue:${review.id}`,
-          payload: { shipmentReviewId: review.id, sellerOrderId: review.sellerOrderId, shipmentId: review.shipmentId },
-        }],
-        skipDuplicates: true,
+      const admins = await tx.user.findMany({
+        where: { role: "ADMIN", status: "ACTIVE" },
+        select: { id: true },
       });
+      if (admins.length) {
+        await tx.notification.createMany({
+          data: admins.map(admin => ({
+            userId: admin.id,
+            type: "PACKING_EVIDENCE_OVERDUE",
+            title: "Packing evidence deadline missed",
+            message: "A paid shipment has not received all four required packing photos within 24 hours. Dispatch remains blocked and operations review is required.",
+            data: { shipmentReviewId: review.id, sellerOrderId: review.sellerOrderId, shipmentId: review.shipmentId },
+          })),
+        });
+      }
     });
   }
 };
