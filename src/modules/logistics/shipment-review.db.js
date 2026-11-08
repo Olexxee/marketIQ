@@ -42,15 +42,27 @@ export const startPackingReview = async ({ sellerOrderId, shipmentId, buyerId, n
       });
       return tx.shipmentReview.findUnique({ where: { id: review.id } });
     }
-    await tx.shipmentReview.updateMany({
+    const reviewExpiresAt = new Date(now.getTime() + REVIEW_WINDOW_MS);
+    const changed = await tx.shipmentReview.updateMany({
       where: { id: review.id, status: "WAITING_FOR_EVIDENCE" },
       data: {
         status: "PENDING_BUYER_REVIEW",
         evidenceCompletedAt: now,
         reviewStartedAt: now,
-        reviewExpiresAt: new Date(now.getTime() + REVIEW_WINDOW_MS),
+        reviewExpiresAt,
       },
     });
+    if (changed.count === 1) {
+      await tx.notification.create({
+        data: {
+          userId: buyerId,
+          type: "PACKING_REVIEW_STARTED",
+          title: "Your order is ready for review",
+          message: "The seller has submitted all four packing photos. Review the parcel within four hours; dispatch will be authorized automatically when the review window expires.",
+          data: { sellerOrderId, shipmentReviewId: review.id, reviewExpiresAt: reviewExpiresAt.toISOString() },
+        },
+      });
+    }
     return tx.shipmentReview.findUnique({ where: { id: review.id } });
   });
 
