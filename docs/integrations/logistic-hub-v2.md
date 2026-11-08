@@ -4,6 +4,8 @@
 
 **Supersedes:** Conflicting MarketIQ-specific v1 assumptions about mirrored Logistic Hub customer/seller accounts, customer email transmission or Hub-side Paystack verification.
 
+**Storefront implementation specification:** [Orders, fulfilment, packing evidence and buyer review](https://github.com/Olexxee/marketIQ-storefront/blob/docs/li-02g-frontend-packing-evidence/docs/logistics-packing-evidence-workflow.md).
+
 ## 1. Purpose and system boundary
 
 MarketIQ and Logistic Hub are separate products, services, databases and systems of record. They communicate through a versioned, authenticated integration contract. They do not share databases, internal user identities or domain state.
