@@ -181,7 +181,7 @@ export function createLogisticHubClient({
     async listPackingEvidence(externalFulfillmentReference) {
       return request(`/shipments/by-external-reference/${encodeURIComponent(externalFulfillmentReference)}/packing-evidence`);
     },
-    async downloadPackingEvidence(evidenceId) {
+    async downloadPackingEvidence(externalFulfillmentReference, evidenceId) {
       let response;
       try {
         response = await fetchImpl(`${settings.baseUrl}/api/v1/integrations/packing-evidence/${encodeURIComponent(evidenceId)}/download`, {
