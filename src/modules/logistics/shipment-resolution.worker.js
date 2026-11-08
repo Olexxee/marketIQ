@@ -31,6 +31,10 @@ const processEvent = async event => {
 
   const attempt = event.attempts + 1;
   const requestId = event.payload?.shipmentResolutionRequestId;
+  await prisma.shipmentResolutionRequest.updateMany({
+    where: { id: requestId, status: "COMMAND_PENDING" },
+    data: { status: "COMMAND_PROCESSING" },
+  });
   try {
     const request = await prisma.shipmentResolutionRequest.findUnique({
       where: { id: requestId },
@@ -97,17 +101,27 @@ const processEvent = async event => {
       error?.retryable === true || !(error instanceof LogisticHubApiError) ||
       error.status === 408 || error.status === 429 || error.status >= 500
     );
-    const terminal = !retryable || attempt >= MAX_ATTEMPTS;
+    const exhausted = retryable && attempt >= MAX_ATTEMPTS;
+    const terminal = !retryable || exhausted;
     await prisma.$transaction(async tx => {
       if (terminal && requestId) {
         const request = await tx.shipmentResolutionRequest.findUnique({ where: { id: requestId } });
         if (request) {
           await tx.shipmentResolutionRequest.update({
             where: { id: requestId },
-            data: { status: "REJECTED", hubResponse: { code: error?.code ?? "SHIPMENT_RESOLUTION_REJECTED", message: String(error?.message ?? error).slice(0, 500) }, resolvedAt: new Date() },
+            data: {
+              status: exhausted ? "FAILED" : "REJECTED",
+              hubResponse: { code: error?.code ?? "SHIPMENT_RESOLUTION_REJECTED", message: String(error?.message ?? error).slice(0, 500) },
+              resolvedAt: new Date(),
+            },
           });
-          await setReviewOutcome(tx, request, "CANCELLATION_REJECTED");
+          await setReviewOutcome(tx, request, exhausted ? "CANCELLATION_COMMAND_FAILED" : "CANCELLATION_REJECTED");
         }
+      } else if (requestId) {
+        await tx.shipmentResolutionRequest.updateMany({
+          where: { id: requestId, status: "COMMAND_PROCESSING" },
+          data: { status: "COMMAND_PENDING" },
+        });
       }
       await tx.outboxEvent.updateMany({
         where: { id: event.id, status: "PROCESSING" },
