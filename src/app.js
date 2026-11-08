@@ -33,6 +33,7 @@ import paymentRouter from "./modules/payments/payment.routes.js";
 import adminOperationsRouter from "./modules/admin-operations/admin-operations.routes.js";
 import logisticsAdminRouter from "./modules/logistics-admin/logistics-admin.routes.js";
 import logisticsRouter from "./modules/logistics/logistics.routes.js";
+import packingEvidenceSellerRouter from "./modules/logistics/packing-evidence.seller.routes.js";
 import { paystackWebhook } from "./modules/payments/payment.webhook.js";
 import { receiveLogisticHubWebhook } from "./modules/logistics/logistic-hub.webhook.controller.js";
 
@@ -151,6 +152,7 @@ app.use("/api/checkout", paymentRouter)
 app.use("/api/admin/operations", adminOperationsRouter);
 app.use("/api/admin/logistics", logisticsAdminRouter);
 app.use("/api/checkout/logistics", logisticsRouter);
+app.use("/api/seller/fulfillments", packingEvidenceSellerRouter);
 
 // ------------------------------------------------------------
 // Public catalog
