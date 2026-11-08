@@ -201,3 +201,30 @@ test("allows a timed-out quote creation to be replayed with the identical idempo
   assert.equal(attempts[0].idempotencyKey, attempts[1].idempotencyKey);
   assert.equal(attempts[0].body, attempts[1].body);
 });
+
+test("freezes all packing evidence and authorizes dispatch with stable idempotency keys", async () => {
+  const calls = [];
+  const client = createLogisticHubClient({
+    config,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { frozenAt: "2026-11-08T10:00:00.000Z", dispatchAuthorizedAt: "2026-11-08T14:00:00.000Z" } }),
+      };
+    },
+  });
+
+  await client.freezePackingEvidence("mqi/ref 1", "mqi-freeze-seller-order-1-v1");
+  await client.authorizeShipmentDispatch("mqi/ref 1", "REVIEW_TIMEOUT", "mqi-dispatch-release-review-1-v1");
+
+  assert.equal(calls[0].url, "https://hub.example.test/api/v1/integrations/shipments/by-external-reference/mqi%2Fref%201/packing-evidence/freeze");
+  assert.equal(calls[0].options.method, "POST");
+  assert.equal(calls[0].options.headers["Idempotency-Key"], "mqi-freeze-seller-order-1-v1");
+  assert.deepEqual(JSON.parse(calls[0].options.body), {});
+  assert.equal(calls[1].url, "https://hub.example.test/api/v1/integrations/shipments/by-external-reference/mqi%2Fref%201/dispatch-authorization");
+  assert.equal(calls[1].options.method, "POST");
+  assert.equal(calls[1].options.headers["Idempotency-Key"], "mqi-dispatch-release-review-1-v1");
+  assert.deepEqual(JSON.parse(calls[1].options.body), { reason: "REVIEW_TIMEOUT" });
+});

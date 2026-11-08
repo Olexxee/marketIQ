@@ -2,8 +2,10 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import prisma from "./config/prisma.js";
 import { startShipmentAuthorizationWorker } from "./modules/logistics/shipment-authorization.worker.js";
+import { startShipmentReviewWorker } from "./modules/logistics/shipment-review.worker.js";
 
 let stopShipmentAuthorizationWorker = () => {};
+let stopShipmentReviewWorker = () => {};
 
 const startServer = async () => {
   try {
@@ -11,6 +13,7 @@ const startServer = async () => {
 
     console.log("Database connected");
     stopShipmentAuthorizationWorker = startShipmentAuthorizationWorker();
+    stopShipmentReviewWorker = startShipmentReviewWorker();
 
     app.listen(env.PORT, () => {
       console.log(`MarketIQ API running on port ${env.PORT}`);
@@ -31,6 +34,7 @@ const shutdown = async (signal) => {
   console.log(`${signal} received. Shutting down...`);
 
   await stopShipmentAuthorizationWorker();
+  await stopShipmentReviewWorker();
   await prisma.$disconnect();
 
   process.exit(0);
