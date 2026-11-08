@@ -16,7 +16,12 @@ const clientFor = provider => createLogisticHubClient({
 });
 
 const mapHubError = error => {
-  if (error instanceof LogisticHubApiError && error.retryable) {
+  if (error instanceof LogisticHubApiError && error.status === 404) {
+    throw new NotFoundError("Packing evidence or shipment not found.");
+  }
+  if (error instanceof LogisticHubApiError && (
+    error.retryable || error.code.endsWith("NOT_CONFIGURED") || error.code.endsWith("INVALID_CONFIGURATION")
+  )) {
     throw new ServiceUnavailableError("Packing evidence storage is temporarily unavailable. Retry with the same Idempotency-Key.");
   }
   if (error instanceof LogisticHubApiError) {
